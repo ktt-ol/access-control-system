@@ -21,6 +21,7 @@
 #include <mosquitto.h>
 #include <poll.h>
 #include <malloc.h>
+#include <stdlib.h>
 #include "gpio.h"
 #include "config.h"
 
@@ -98,10 +99,17 @@ static void display_state(struct userdata *udata, int state) {
 }
 
 static void on_connect(struct mosquitto *m, void *data, int res) {
+	int ret;
 	struct userdata *udata = (struct userdata*) data;
 
 	fprintf(stderr, "Connected, laststate=%s.\n", states[udata->laststate]);
 	display_state(udata, udata->laststate);
+
+	ret = mosquitto_subscribe(m, NULL, TOPIC, 1);
+	if (ret) {
+		fprintf(stderr, "Error could not subscribe to %s: %d\n", TOPIC, ret);
+		exit(1);
+	}
 }
 
 static void on_disconnect(struct mosquitto *m, void *data, int res) {
@@ -216,12 +224,6 @@ int main(int argc, char **argv) {
 	ret = mosquitto_connect(mosq, BROKER_HOSTNAME, BROKER_PORT, KEEPALIVE_SECONDS);
 	if (ret) {
 		fprintf(stderr, "Error could not connect to broker: %d\n", ret);
-		return 1;
-	}
-
-	ret = mosquitto_subscribe(mosq, NULL, TOPIC, 1);
-	if (ret) {
-		fprintf(stderr, "Error could not subscribe to %s: %d\n", TOPIC, ret);
 		return 1;
 	}
 
