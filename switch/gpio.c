@@ -18,6 +18,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include "gpio.h"
 
 #define MAX_BUF 64
@@ -60,9 +61,8 @@ volatile bool gpio_read(int fd) {
 	return (value == '1');
 }
 
-volatile bool gpio_write(int fd, bool enable) {
+void gpio_write(int fd, bool enable) {
 	char value = enable ? '1' : '0';
 	lseek(fd, 0, SEEK_SET);
 	write(fd, &value, 1);
-	return;
 }

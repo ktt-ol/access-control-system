@@ -5,6 +5,6 @@
 
 int gpio_open(int id, bool output);
 volatile bool gpio_read(int fd);
-volatile bool gpio_write(int fd, bool enable);
+void gpio_write(int fd, bool enable);
 
 #endif
