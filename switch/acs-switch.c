@@ -18,10 +18,15 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <mosquitto.h>
 #include <poll.h>
+#include <stdlib.h>
 #include "gpio.h"
-#include "config.h"
+#include "../common/config.h"
+
+#define STATE_TOPIC "/access-control-system/space-state"
+#define GPIO_TIMEOUT 5
 
 const static char* states[] = {
 	"opened",
@@ -39,9 +44,7 @@ static void on_publish(struct mosquitto *m, void *udata, int m_id) {
 }
 
 static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
-	fprintf(stdout, "[%d] ", level);
-	fprintf(stdout, str);
-	fprintf(stdout, "\n");
+	fprintf(stdout, "[%d] %s\n", level, str);
 }
 
 static const unsigned char gpios_merge(bool gpio1, bool gpio2) {
@@ -68,6 +71,17 @@ int main(int argc, char **argv) {
 
 	mosquitto_lib_init();
 
+	FILE *cfg = cfg_open();
+	char *user = cfg_get_default(cfg, "mqtt-username", MQTT_USERNAME);
+	char *pass = cfg_get_default(cfg, "mqtt-password", MQTT_PASSWORD);
+	char *cert = cfg_get_default(cfg, "mqtt-broker-cert", MQTT_BROKER_CERT);
+	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
+	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
+	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
+	int gpiot = cfg_get_int_default(cfg, "gpio-switch-top", GPIO_SWITCH_TOP);
+	int gpiob = cfg_get_int_default(cfg, "gpio-switch-bottom", GPIO_SWITCH_BOTTOM);
+	cfg_close(cfg);
+
 	/* create mosquitto client instance */
 	mosq = mosquitto_new("space-status-switch", true, NULL);
 	if(!mosq) {
@@ -81,39 +95,43 @@ int main(int argc, char **argv) {
 	mosquitto_log_callback_set(mosq, on_log);
 
 	/* setup credentials */
-	ret = mosquitto_username_pw_set(mosq, USERNAME, PASSWORD);
-	if(ret) {
-		fprintf(stderr, "Error setting credentials: %d\n", ret);
-		return 1;
+	if (strcmp(user, "")) {
+		ret = mosquitto_username_pw_set(mosq, user, pass);
+		if(ret) {
+			fprintf(stderr, "Error setting credentials: %d\n", ret);
+			return 1;
+		}
 	}
 
-	ret = mosquitto_tls_set(mosq, SERVER_CERT, NULL, NULL, NULL, NULL);
-	if(ret) {
-		fprintf(stderr, "Error setting TLS mode: %d\n", ret);
-		return 1;
-	}
+	if (strcmp(cert, "")) {
+		ret = mosquitto_tls_set(mosq, cert, NULL, NULL, NULL, NULL);
+		if(ret) {
+			fprintf(stderr, "Error setting TLS mode: %d\n", ret);
+			return 1;
+		}
 
-	ret = mosquitto_tls_opts_set(mosq, 1, "tlsv1.2", NULL);
-	if(ret) {
-		fprintf(stderr, "Error requiring TLS 1.2: %d\n", ret);
-		return 1;
+		ret = mosquitto_tls_opts_set(mosq, 1, "tlsv1.2", NULL);
+		if(ret) {
+			fprintf(stderr, "Error requiring TLS 1.2: %d\n", ret);
+			return 1;
+		}
 	}
 
 	/* connect to broker */
-	ret = mosquitto_connect(mosq, BROKER_HOSTNAME, BROKER_PORT, KEEPALIVE_SECONDS);
+	ret = mosquitto_connect(mosq, host, port, keepalv);
 	if (ret) {
 		fprintf(stderr, "Error could not connect to broker: %d\n", ret);
 		return 1;
 	}
 
 	/* read switch state */
-	int switch_top    = gpio_open(GPIO_SWITCH_TOP, false);
+	int switch_top = gpio_open(gpiot, false);
 	if(switch_top == -1) {
 		fprintf(stderr, "could not open gpio\n");
 		return 1;
 	}
 
-	int switch_bottom = gpio_open(GPIO_SWITCH_BOTTOM, false);
+	int switch_bottom = gpio_open(gpiob, false);
 	if(switch_bottom == -1) {
 		fprintf(stderr, "could not open gpio\n");
 		return 1;
@@ -135,7 +153,6 @@ int main(int argc, char **argv) {
 		fdset[1].events = POLLPRI;
 
 		ret = poll(fdset, nfds, GPIO_TIMEOUT);
-
 		if(ret < 0) {
 				fprintf(stderr, "Failed to poll gpios: %d\n", ret);
 				return 1;
@@ -150,7 +167,7 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "new state: %s\n", state);
 
 			/* publish state */
-			ret = mosquitto_publish(mosq, NULL, TOPIC, strlen(state), state, 0, true);
+			ret = mosquitto_publish(mosq, NULL, STATE_TOPIC, strlen(state), state, 0, true);
 			if (ret) {
 				fprintf(stderr, "Error could not send message: %d\n", ret);
 				return 1;
@@ -161,6 +178,11 @@ int main(int argc, char **argv) {
 
 		sleep(GPIO_TIMEOUT);
 	}
+
+	free(user);
+	free(pass);
+	free(cert);
+	free(host);
 
 	/* cleanup */
 	mosquitto_destroy(mosq);

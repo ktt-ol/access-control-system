@@ -23,7 +23,9 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include "gpio.h"
-#include "config.h"
+#include "../common/config.h"
+
+#define STATE_TOPIC "/access-control-system/space-state"
 
 const static char* states[] = {
 	"unknown",
@@ -52,9 +54,7 @@ struct userdata {
 };
 
 static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
-	fprintf(stdout, "[%d] ", level);
-	fprintf(stdout, str);
-	fprintf(stdout, "\n");
+	fprintf(stdout, "[%d] %s\n", level, str);
 }
 
 
@@ -62,7 +62,7 @@ static void on_subscribe(struct mosquitto *m, void *udata, int mid, int qos_coun
 	int i;
 
 	fprintf(stderr, "Subscribed (mid: %d): %d", mid, granted_qos[0]);
-	for(i=1; i<qos_count; i++){
+	for(i=1; i<qos_count; i++) {
 		fprintf(stderr, ", %d", granted_qos[i]);
 	}
 
@@ -105,9 +105,9 @@ static void on_connect(struct mosquitto *m, void *data, int res) {
 	fprintf(stderr, "Connected, laststate=%s.\n", states[udata->laststate]);
 	display_state(udata, udata->laststate);
 
-	ret = mosquitto_subscribe(m, NULL, TOPIC, 1);
+	ret = mosquitto_subscribe(m, NULL, STATE_TOPIC, 1);
 	if (ret) {
-		fprintf(stderr, "Error could not subscribe to %s: %d\n", TOPIC, ret);
+		fprintf(stderr, "Error could not subscribe to %s: %d\n", STATE_TOPIC, ret);
 		exit(1);
 	}
 }
@@ -130,7 +130,7 @@ static void on_message(struct mosquitto *m, void *udata, const struct mosquitto_
 	int curstate = STATE_UNKNOWN;
 
 	/* wrong */
-	if(strcmp(TOPIC, msg->topic)) {
+	if(strcmp(STATE_TOPIC, msg->topic)) {
 		fprintf(stderr, "Ignored message with wrong topic\n");
 		return;
 	}
@@ -158,6 +158,18 @@ int main(int argc, char **argv) {
 
 	mosquitto_lib_init();
 
+	FILE *cfg = cfg_open();
+	char *user = cfg_get_default(cfg, "mqtt-username", MQTT_USERNAME);
+	char *pass = cfg_get_default(cfg, "mqtt-password", MQTT_PASSWORD);
+	char *cert = cfg_get_default(cfg, "mqtt-broker-cert", MQTT_BROKER_CERT);
+	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
+	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
+	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
+	int gpio_opened = cfg_get_int_default(cfg, "gpio-led-opened", GPIO_LED_OPENED);
+	int gpio_closing = cfg_get_int_default(cfg, "gpio-led-closing", GPIO_LED_CLOSING);
+	int gpio_closed = cfg_get_int_default(cfg, "gpio-led-closed", GPIO_LED_CLOSED);
+	cfg_close(cfg);
+
 	udata = malloc(sizeof(*udata));
 	if(!udata) {
 		printf("out of memory!\n");
@@ -173,21 +185,21 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	udata->gpio_led_opened = gpio_open(GPIO_LED_OPENED, true);
+	udata->gpio_led_opened = gpio_open(gpio_opened, true);
 	if(udata->gpio_led_opened == -1) {
-		fprintf(stderr, "could not open gpio %d\n", GPIO_LED_OPENED);
+		fprintf(stderr, "could not open gpio %d\n", gpio_opened);
 		return 1;
 	}
 
-	udata->gpio_led_closing = gpio_open(GPIO_LED_CLOSING, true);
+	udata->gpio_led_closing = gpio_open(gpio_closing, true);
 	if(udata->gpio_led_closing == -1) {
-		fprintf(stderr, "could not open gpio %d\n", GPIO_LED_CLOSING);
+		fprintf(stderr, "could not open gpio %d\n", gpio_closing);
 		return 1;
 	}
 
-	udata->gpio_led_closed = gpio_open(GPIO_LED_CLOSED, true);
+	udata->gpio_led_closed = gpio_open(gpio_closed, true);
 	if(udata->gpio_led_closed == -1) {
-		fprintf(stderr, "could not open gpio %d\n", GPIO_LED_CLOSED);
+		fprintf(stderr, "could not open gpio %d\n", gpio_closed);
 		return 1;
 	}
 
@@ -202,26 +214,30 @@ int main(int argc, char **argv) {
 	mosquitto_message_callback_set(mosq, on_message);
 
 	/* setup credentials */
-	ret = mosquitto_username_pw_set(mosq, USERNAME, PASSWORD);
-	if(ret) {
-		fprintf(stderr, "Error setting credentials: %d\n", ret);
-		return 1;
+	if (strcmp(user, "")) {
+		ret = mosquitto_username_pw_set(mosq, user, pass);
+		if(ret) {
+			fprintf(stderr, "Error setting credentials: %d\n", ret);
+			return 1;
+		}
 	}
 
-	ret = mosquitto_tls_set(mosq, SERVER_CERT, NULL, NULL, NULL, NULL);
-	if(ret) {
-		fprintf(stderr, "Error setting TLS mode: %d\n", ret);
-		return 1;
-	}
+	if (strcmp(cert, "")) {
+		ret = mosquitto_tls_set(mosq, cert, NULL, NULL, NULL, NULL);
+		if(ret) {
+			fprintf(stderr, "Error setting TLS mode: %d\n", ret);
+			return 1;
+		}
 
-	ret = mosquitto_tls_opts_set(mosq, 1, "tlsv1.2", NULL);
-	if(ret) {
-		fprintf(stderr, "Error requiring TLS 1.2: %d\n", ret);
-		return 1;
+		ret = mosquitto_tls_opts_set(mosq, 1, "tlsv1.2", NULL);
+		if(ret) {
+			fprintf(stderr, "Error requiring TLS 1.2: %d\n", ret);
+			return 1;
+		}
 	}
 
 	/* connect to broker */
-	ret = mosquitto_connect(mosq, BROKER_HOSTNAME, BROKER_PORT, KEEPALIVE_SECONDS);
+	ret = mosquitto_connect(mosq, host, port, keepalv);
 	if (ret) {
 		fprintf(stderr, "Error could not connect to broker: %d\n", ret);
 		return 1;
@@ -232,6 +248,11 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Error could not start mosquitto network loop: %d\n", ret);
 		return 1;
 	}
+
+	free(user);
+	free(pass);
+	free(cert);
+	free(host);
 
 	free(udata);
 

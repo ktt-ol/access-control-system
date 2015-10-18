@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <time.h>
+#include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -14,10 +15,9 @@
 #include <arpa/inet.h>
 #include <linux/ethtool.h>
 #include <linux/sockios.h>
+#include "../common/config.h"
 
 #define display_size 32+1
-#define ETH_DEV "eth0"
-#define SERIAL_DEV "/dev/ttyUSB0"
 
 const static char clear_display_cmd[] = {0xfe, 0x01};
 #define clear_display(fd) write(fd, clear_display_cmd, sizeof(clear_display_cmd));
@@ -94,7 +94,10 @@ static char *get_time() {
 }
 
 int main(int argc, char **argv) {
-	char *portname = SERIAL_DEV;
+	FILE *cfg = cfg_open();
+	char *portname = cfg_get_default(cfg, "serial-display-dev", SERIAL_DISPLAY_DEV);
+	char *ethdev = cfg_get_default(cfg, "network-dev", NETWORK_DEV);
+	cfg_close(cfg);
 	char *msg = malloc(display_size);
 	char *ip, *time;
 
@@ -116,8 +119,8 @@ int main(int argc, char **argv) {
 		sleep(3);
 		clear_display(fd);
 
-		if(get_carrier(ETH_DEV)) {
-			ip = get_ip_addr(ETH_DEV);
+		if(get_carrier(ethdev)) {
+			ip = get_ip_addr(ethdev);
 			snprintf(msg, display_size, "IP:             %s", ip);
 			write(fd, msg, strlen(msg));
 		} else {
