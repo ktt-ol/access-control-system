@@ -1,0 +1,4 @@
+etc
+lib/systemd/system
+usr/sbin
+usr/bin

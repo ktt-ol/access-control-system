@@ -1,0 +1,17 @@
+Source: access-control-system
+Section: misc
+Priority: optional
+Maintainer: Sebastian Reichel <sre@mainframe.io>
+Build-Depends: debhelper (>= 9),
+               dh-systemd (>= 1.5),
+               libmosquitto-dev
+Standards-Version: 3.9.6
+
+Package: access-control-system
+Architecture: any
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: multi-user doorlock system for hackspaces
+ This package provides a doorlock solution designed for
+ hackspaces. It is intended to be used on a small embedded
+ board, like a Raspberry Pi. In addition to this package
+ a few hardware components are required.
