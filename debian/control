@@ -4,7 +4,10 @@ Priority: optional
 Maintainer: Sebastian Reichel <sre@mainframe.io>
 Build-Depends: debhelper (>= 9),
                dh-systemd (>= 1.5),
-               libmosquitto-dev
+               libmosquitto-dev,
+               libpcre3-dev,
+               libsqlite3-dev,
+               libssl-dev
 Standards-Version: 3.9.6
 
 Package: access-control-system

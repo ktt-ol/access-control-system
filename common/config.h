@@ -2,6 +2,11 @@
 
 /* ----- defaults for variables from configfile ----- */
 
+#define SSHLOGFILE "/var/log/auth.log"
+#define SSHKEYFILE "/home/keyholder/.ssh/authorized_keys"
+#define DATABASE "/var/lib/access-control-system"
+#define STATEDIR "/run/access-control-system/"
+
 #define MQTT_BROKER_HOST "localhost"
 #define MQTT_BROKER_PORT 8883
 #define MQTT_BROKER_CERT ""
