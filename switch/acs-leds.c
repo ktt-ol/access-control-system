@@ -22,8 +22,8 @@
 #include <poll.h>
 #include <malloc.h>
 #include <stdlib.h>
-#include "gpio.h"
 #include "../common/config.h"
+#include "../common/gpio.h"
 
 #define STATE_TOPIC "/access-control-system/space-state"
 
