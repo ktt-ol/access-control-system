@@ -1,3 +1,6 @@
+LIBS=-lmosquitto
+LDFLAGS+=${LIBS}
+
 all: acs-status-display
 
 acs-status-display: acs-status-display.o ../common/config.o
