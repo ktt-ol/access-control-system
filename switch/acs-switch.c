@@ -56,9 +56,9 @@ static const char* gpios_decode(unsigned char gpios) {
 		case 0x00:
 			return states[1];
 		case 0x01:
-			return states[0];
-		case 0x02:
 			return states[2];
+		case 0x02:
+			return states[0];
 		default:
 			return states[3];
 	}
