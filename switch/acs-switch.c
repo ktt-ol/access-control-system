@@ -26,7 +26,7 @@
 #include "../common/gpio.h"
 
 #define STATE_TOPIC "/access-control-system/space-state"
-#define GPIO_TIMEOUT 5
+#define GPIO_TIMEOUT 60 * 1000
 
 const static char* states[] = {
 	"opened",
@@ -175,8 +175,6 @@ int main(int argc, char **argv) {
 		} else {
 			fprintf(stdout, "gpios: 0x%02x\n", gpios);
 		}
-
-		sleep(GPIO_TIMEOUT);
 	}
 
 	free(user);
