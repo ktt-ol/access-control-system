@@ -44,7 +44,7 @@ int gpio_open(int gpio, bool output) {
 		write(fd, "in", 2);
 	close(fd);
 
-	if (output) {
+	if (!output) {
 		snprintf(buf, MAX_BUF, "/sys/class/gpio/gpio%d/edge", gpio);
 		fd = open(buf, O_WRONLY);
 		if(fd == -1) return -1;
