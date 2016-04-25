@@ -1,0 +1,16 @@
+[Unit]
+Description=Glass Door Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/sbin/acs-glass-door
+WorkingDirectory=/tmp
+User=root
+Group=root
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
