@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Sebastian Reichel <sre@mainframe.io>
 Build-Depends: debhelper (>= 9),
                dh-systemd (>= 1.5),
+               libi2c-dev,
                libmosquitto-dev,
                libpcre3-dev,
                libsqlite3-dev,
