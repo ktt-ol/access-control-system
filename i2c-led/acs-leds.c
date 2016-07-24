@@ -77,6 +77,7 @@ enum location {
 	LOCATION_BELL_BUTTON,
 	LOCATION_INDOOR,
 	LOCATION_KEYPAD,
+	LOCATION_BELL_BUTTON_2,
 	LOCATION_STRIPE,
 	LOCATION_ALL,
 	LOCATION_MAX
@@ -103,13 +104,17 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 			start=2;
 			stop=7;
 			break;
-		case LOCATION_STRIPE:
+		case LOCATION_BELL_BUTTON_2:
 			start=7;
-			stop=31;
+			stop=8;
+			break;
+		case LOCATION_STRIPE:
+			start=8;
+			stop=32;
 			break;
 		case LOCATION_ALL:
 			start=0;
-			stop=31;
+			stop=32;
 			break;
 	}
 
