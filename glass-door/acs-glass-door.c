@@ -202,8 +202,6 @@ int main(int argc, char **argv) {
 	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
 	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
 	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
-	int gpio_buzzer = cfg_get_int_default(cfg, "gpio-buzzer", GPIO_BUZZER);
-	int gpio_bell = cfg_get_int_default(cfg, "gpio-bell", GPIO_BELL);
 	cfg_close(cfg);
 
 	/* create mosquitto client instance */
@@ -251,14 +249,14 @@ int main(int argc, char **argv) {
 	}
 
 	/* open gpios */
-	udata.buzzer = gpio_open(gpio_buzzer, true, false);
+	udata.buzzer = gpio_get("glass-door-buzzer");
 	if(udata.buzzer == -1) {
 		fprintf(stderr, "could not open buzzer gpio\n");
 		return 1;
 	}
 	gpio_write(udata.buzzer, true); /* low active */
 
-	udata.bell = gpio_open(gpio_bell, true, false);
+	udata.bell = gpio_get("bell");
 	if(udata.bell == -1) {
 		fprintf(stderr, "could not open bell gpio\n");
 		return 1;

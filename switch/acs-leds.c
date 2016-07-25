@@ -165,9 +165,6 @@ int main(int argc, char **argv) {
 	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
 	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
 	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
-	int gpio_opened = cfg_get_int_default(cfg, "gpio-led-opened", GPIO_LED_OPENED);
-	int gpio_closing = cfg_get_int_default(cfg, "gpio-led-closing", GPIO_LED_CLOSING);
-	int gpio_closed = cfg_get_int_default(cfg, "gpio-led-closed", GPIO_LED_CLOSED);
 	cfg_close(cfg);
 
 	udata = malloc(sizeof(*udata));
@@ -185,21 +182,21 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	udata->gpio_led_opened = gpio_open(gpio_opened, true, false);
+	udata->gpio_led_opened = gpio_get("status-led-opened");
 	if(udata->gpio_led_opened == -1) {
-		fprintf(stderr, "could not open gpio %d\n", gpio_opened);
+		fprintf(stderr, "couldn't get status-led-opened gpio %d\n", udata->gpio_led_opened);
 		return 1;
 	}
 
-	udata->gpio_led_closing = gpio_open(gpio_closing, true, false);
+	udata->gpio_led_closing = gpio_get("status-led-closing");
 	if(udata->gpio_led_closing == -1) {
-		fprintf(stderr, "could not open gpio %d\n", gpio_closing);
+		fprintf(stderr, "couldn't get status-led-closing gpio %d\n", udata->gpio_led_closing);
 		return 1;
 	}
 
-	udata->gpio_led_closed = gpio_open(gpio_closed, true, false);
+	udata->gpio_led_closed = gpio_get("status-led-closed");
 	if(udata->gpio_led_closed == -1) {
-		fprintf(stderr, "could not open gpio %d\n", gpio_closed);
+		fprintf(stderr, "couldn't get status-led-closed gpio %d\n", udata->gpio_led_closed);
 		return 1;
 	}
 

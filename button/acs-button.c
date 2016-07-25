@@ -56,7 +56,6 @@ int main(int argc, char **argv) {
 	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
 	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
 	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
-	int gpio_bell = cfg_get_int_default(cfg, "gpio-bell-switch", GPIO_SWITCH_BELL);
 	cfg_close(cfg);
 
 	/* create mosquitto client instance */
@@ -102,7 +101,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* read switch state */
-	int switch_bell = gpio_open(gpio_bell, false, false);
+	int switch_bell = gpio_get("bell");
 	if(switch_bell == -1) {
 		fprintf(stderr, "could not open gpio\n");
 		return 1;
