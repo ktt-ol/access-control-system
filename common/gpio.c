@@ -24,7 +24,7 @@
 
 #define MAX_BUF 64
 
-int gpio_open(int gpio, bool output, bool active_low) {
+static int gpio_open(int gpio, bool output, bool active_low) {
 	int fd;
 	char buf[MAX_BUF];
 
