@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "gpio.h"
+#include "config.h"
 
 #define MAX_BUF 64
 
@@ -67,6 +68,16 @@ int gpio_open(int gpio, bool output, bool active_low) {
 		fd = open(buf, O_RDONLY);
 
 	return fd;
+}
+
+int gpio_get(char *name) {
+	int i;
+
+	for(i=0; gpios[i].name; i++) {
+		if(strcmp(gpios[i].name, name))
+			continue;
+		return gpio_open(gpios[i].gpio, gpios[i].direction, gpios[i].active_low);
+	}
 }
 
 volatile bool gpio_read(int fd) {

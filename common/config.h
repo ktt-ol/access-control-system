@@ -1,3 +1,8 @@
+#ifndef __CONFIG_H
+#define __CONFIG_H
+
+#include "gpio.h"
+
 #define CONFIGFILE "/etc/access-control-system.conf"
 
 /* ----- defaults for variables from configfile ----- */
@@ -34,6 +39,27 @@
 #define NETWORK_DEV "eth0"
 #define SERIAL_DISPLAY_DEV "/dev/ttyUSB0"
 
+/* ----- gpios ----- */
+
+struct gpio_desc {
+	char *name;
+	int gpio;
+	bool active_low;
+	enum gpio_direction direction;
+};
+
+static struct gpio_desc gpios[] = {
+	{ "status-switch-top", 27, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
+	{ "status-switch-bottom", 22, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
+	{ "glass-door-bolt-switch", 4, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
+	{ "glass-door-bell-button", 17, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
+	{ "glass-door-buzzer", 18, ACTIVE_HIGH, GPIO_DIRECTION_OUTPUT },
+	{ "main-door-bell-button", 23, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
+	{ "main-door-buzzer", 24, ACTIVE_HIGH, GPIO_DIRECTION_OUTPUT },
+	{ "main-door-reed-switch", 25, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
+	{ "bell", 15, ACTIVE_HIGH, GPIO_DIRECTION_OUTPUT },
+};
+
 /* ----- config file interface ----- */
 
 FILE *cfg_open();
@@ -48,3 +74,5 @@ static inline int cfg_get_int_default(FILE *cfg, char *key, int def) {
 	int result = cfg_get_int(cfg, key);
 	return (result >= 0) ? result : def;
 }
+
+#endif
