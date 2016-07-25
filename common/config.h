@@ -44,7 +44,7 @@ static struct gpio_desc gpios[] = {
 	{ "glass-door-bell-button", 17, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
 	{ "glass-door-buzzer", 18, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
 	{ "main-door-bell-button", 23, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
-	{ "main-door-buzzer", 24, ACTIVE_HIGH, GPIO_DIRECTION_OUTPUT },
+	{ "main-door-buzzer", 24, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
 	{ "main-door-reed-switch", 25, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
 	{ "bell", 15, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
 };
