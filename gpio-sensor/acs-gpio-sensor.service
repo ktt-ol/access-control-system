@@ -1,0 +1,16 @@
+[Unit]
+Description=Access Control System GPIO Sensor Service
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/sbin/acs-gpio-sensor
+WorkingDirectory=/tmp
+User=root
+Group=root
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

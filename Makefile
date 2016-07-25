@@ -7,6 +7,7 @@ all:
 	cd i2c-led && make
 	cd button && make
 	cd glass-door && make
+	cd gpio-sensor && make
 
 clean:
 	cd abus-cfa1000 && make clean
@@ -17,6 +18,7 @@ clean:
 	cd i2c-led && make clean
 	cd button && make clean
 	cd glass-door && make clean
+	cd gpio-sensor && make clean
 	rm -f common/config.o common/gpio.o
 
 install:
@@ -28,6 +30,7 @@ install:
 	cd i2c-led && make install
 	cd button && make install
 	cd glass-door && make install
+	cd gpio-sensor && make install
 	install -m 644 data/access-control-system.conf $(DESTDIR)/etc
 
 .PHONY: all clean install
