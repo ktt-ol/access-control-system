@@ -251,14 +251,14 @@ int main(int argc, char **argv) {
 	}
 
 	/* open gpios */
-	udata.buzzer = gpio_open(gpio_buzzer, true);
+	udata.buzzer = gpio_open(gpio_buzzer, true, false);
 	if(udata.buzzer == -1) {
 		fprintf(stderr, "could not open buzzer gpio\n");
 		return 1;
 	}
 	gpio_write(udata.buzzer, true); /* low active */
 
-	udata.bell = gpio_open(gpio_bell, true);
+	udata.bell = gpio_open(gpio_bell, true, false);
 	if(udata.bell == -1) {
 		fprintf(stderr, "could not open bell gpio\n");
 		return 1;

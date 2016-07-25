@@ -185,19 +185,19 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	udata->gpio_led_opened = gpio_open(gpio_opened, true);
+	udata->gpio_led_opened = gpio_open(gpio_opened, true, false);
 	if(udata->gpio_led_opened == -1) {
 		fprintf(stderr, "could not open gpio %d\n", gpio_opened);
 		return 1;
 	}
 
-	udata->gpio_led_closing = gpio_open(gpio_closing, true);
+	udata->gpio_led_closing = gpio_open(gpio_closing, true, false);
 	if(udata->gpio_led_closing == -1) {
 		fprintf(stderr, "could not open gpio %d\n", gpio_closing);
 		return 1;
 	}
 
-	udata->gpio_led_closed = gpio_open(gpio_closed, true);
+	udata->gpio_led_closed = gpio_open(gpio_closed, true, false);
 	if(udata->gpio_led_closed == -1) {
 		fprintf(stderr, "could not open gpio %d\n", gpio_closed);
 		return 1;

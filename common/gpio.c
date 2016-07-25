@@ -23,7 +23,7 @@
 
 #define MAX_BUF 64
 
-int gpio_open(int gpio, bool output) {
+int gpio_open(int gpio, bool output, bool active_low) {
 	int fd;
 	char buf[MAX_BUF];
 
@@ -42,6 +42,13 @@ int gpio_open(int gpio, bool output) {
 		write(fd, "out", 3);
 	else
 		write(fd, "in", 2);
+	close(fd);
+
+	/* set active_low */
+	snprintf(buf, MAX_BUF, "/sys/class/gpio/gpio%d/active_low", gpio);
+	fd = open(buf, O_WRONLY);
+	if(fd == -1) return -1;
+	write(fd, active_low ? "1" : "0", 1);
 	close(fd);
 
 	if (!output) {

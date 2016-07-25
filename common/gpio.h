@@ -3,7 +3,15 @@
 
 #include <stdbool.h>
 
-int gpio_open(int id, bool output);
+#define ACTIVE_LOW 1
+#define ACTIVE_HIGH 0
+
+enum gpio_direction {
+	GPIO_DIRECTION_INPUT = 0,
+	GPIO_DIRECTION_OUTPUT = 1,
+};
+
+int gpio_open(int id, bool output, bool active_low);
 volatile bool gpio_read(int fd);
 void gpio_write(int fd, bool enable);
 

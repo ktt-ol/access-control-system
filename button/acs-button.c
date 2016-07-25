@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* read switch state */
-	int switch_bell = gpio_open(gpio_bell, false);
+	int switch_bell = gpio_open(gpio_bell, false, false);
 	if(switch_bell == -1) {
 		fprintf(stderr, "could not open gpio\n");
 		return 1;

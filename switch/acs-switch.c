@@ -125,13 +125,13 @@ int main(int argc, char **argv) {
 	}
 
 	/* read switch state */
-	int switch_top = gpio_open(gpiot, false);
+	int switch_top = gpio_open(gpiot, false, false);
 	if(switch_top == -1) {
 		fprintf(stderr, "could not open gpio\n");
 		return 1;
 	}
 
-	int switch_bottom = gpio_open(gpiob, false);
+	int switch_bottom = gpio_open(gpiob, false, false);
 	if(switch_bottom == -1) {
 		fprintf(stderr, "could not open gpio\n");
 		return 1;
