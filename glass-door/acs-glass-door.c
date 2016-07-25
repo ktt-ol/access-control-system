@@ -143,8 +143,10 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 
 	fprintf(stderr, "Bell button pressed!\n");
 
-	if(udata->eventinprogress)
+	if(udata->eventinprogress) {
+		fprintf(stderr, "button pressed event skipped (already in progress)!\n");
 		return;
+	}
 
 	udata->eventinprogress = true;
 
@@ -247,6 +249,9 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Error could not connect to broker: %d\n", ret);
 		return 1;
 	}
+
+	/* init udata */
+	udata.eventinprogress = false;
 
 	/* open gpios */
 	udata.buzzer = gpio_get("glass-door-buzzer");
