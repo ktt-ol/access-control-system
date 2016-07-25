@@ -35,7 +35,7 @@ struct gpio_sensor {
 struct gpio_sensor sensors[] = {
 	{ "glass-door-bell-button",  "/access-control-system/glass-door/bell-button", -1, 0 },
 	{ "glass-door-bolt-switch",  "/access-control-system/glass-door/bolt-contact", -1, 0 },
-	{ "main-door-bell-button",  "/access-control-system/main-door/bell-switch", -1, 0 },
+	{ "main-door-bell-button",  "/access-control-system/main-door/bell-button", -1, 0 },
 	{ "main-door-reed-switch",  "/access-control-system/main-door/reed-button", -1, 0 },
 	{}
 };
