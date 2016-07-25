@@ -26,7 +26,7 @@
 #include "../common/config.h"
 #include "../common/gpio.h"
 
-#define BELL_TOPIC "/access-control-system/bell-switch"
+#define BELL_TOPIC "/access-control-system/glass-door/bell-button"
 #define STATE_TOPIC "/access-control-system/space-state"
 const static char* states[] = {
 	"unknown",
@@ -136,7 +136,7 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 	struct userdata *udata = (struct userdata*) data;
 	bool new_gpio_state;
 
-	if(strncmp("pressed", msg->payload, msg->payloadlen)) {
+	if(strncmp("1", msg->payload, msg->payloadlen)) {
 		fprintf(stderr, "Bell button no longer pressed!\n");
 		return;
 	}
