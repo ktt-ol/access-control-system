@@ -71,8 +71,8 @@ char *cfg_get(FILE *cfg, char *key) {
 		} else
 			lineval++;
 
-		/* variable name may be followed by spaces or tabs */
-		for (lineval = line + key_len; *lineval == ' ' || *lineval == '\t' ; lineval++);
+		/* value may be prefixed by spaces or tabs */
+		for (; *lineval == ' ' || *lineval == '\t' ; lineval++);
 
 		result = strndup(lineval, strlen(lineval)-1);
 		break;
