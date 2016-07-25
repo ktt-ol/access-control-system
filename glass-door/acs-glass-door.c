@@ -149,14 +149,14 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 	udata->eventinprogress = true;
 
 	if(udata->state == STATE_OPENED) {
-		gpio_write(udata->buzzer, false);
+		gpio_write(udata->buzzer, true);
 		alarm(5);
 	} else if(udata->state == STATE_CLOSING) {
-		gpio_write(udata->buzzer, false);
-		gpio_write(udata->bell, false);
+		gpio_write(udata->buzzer, true);
+		gpio_write(udata->bell, true);
 		alarm(1);
 	} else {
-		gpio_write(udata->bell, false);
+		gpio_write(udata->bell, true);
 		alarm(1);
 	}
 }
@@ -180,8 +180,8 @@ static void on_message(struct mosquitto *m, void *data, const struct mosquitto_m
 
 void on_alarm(int signal) {
 	/* disable buzzer and bell */
-	gpio_write(globaludata->buzzer, true);
-	gpio_write(globaludata->bell, true);
+	gpio_write(globaludata->buzzer, false);
+	gpio_write(globaludata->bell, false);
 	globaludata->eventinprogress = false;
 }
 
@@ -254,14 +254,14 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "could not open buzzer gpio\n");
 		return 1;
 	}
-	gpio_write(udata.buzzer, true); /* low active */
+	gpio_write(udata.buzzer, false);
 
 	udata.bell = gpio_get("bell");
 	if(udata.bell == -1) {
 		fprintf(stderr, "could not open bell gpio\n");
 		return 1;
 	}
-	gpio_write(udata.bell, true); /* low active */
+	gpio_write(udata.bell, false);
 
 	globaludata = &udata;
 	signal(SIGALRM, on_alarm);
