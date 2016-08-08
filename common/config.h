@@ -47,6 +47,10 @@ static struct gpio_desc gpios[] = {
 	{ "main-door-buzzer", 24, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
 	{ "main-door-reed-switch", 25, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
 	{ "bell", 15, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
+	{ "abus-cfa1000-button-lock", 11, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
+	{ "abus-cfa1000-button-unlock", 8, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
+	{ "abus-cfa1000-button-setup", 10, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
+	{ "abus-cfa1000-irq", 9, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
 };
 
 /* ----- config file interface ----- */
