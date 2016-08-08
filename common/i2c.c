@@ -35,9 +35,9 @@ int i2c_read(int file, uint8_t reg) {
 }
 
 int i2c_write16(int file, uint8_t reg, uint16_t val) {
-	return i2c_smbus_write_byte_data(file, reg, val);
+	return i2c_smbus_write_word_data(file, reg, val);
 }
 
 int i2c_read16(int file, uint8_t reg) {
-	return i2c_smbus_read_byte_data(file, reg);
+	return i2c_smbus_read_word_data(file, reg);
 }
