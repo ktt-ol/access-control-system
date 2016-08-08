@@ -23,7 +23,7 @@
 #define I2C_LEDS_DEV 0x23
 
 #define ABUS_CFA1000_I2C_BUS 1
-#define ABUS_CFA1000_I2C_DEV 1
+#define ABUS_CFA1000_I2C_DEV 0x20
 
 #define NETWORK_DEV "eth0"
 #define SERIAL_DISPLAY_DEV "/dev/ttyUSB0"
