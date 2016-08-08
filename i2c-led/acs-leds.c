@@ -23,7 +23,7 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include "../common/config.h"
-#include "i2c.h"
+#include "../common/i2c.h"
 
 #define STATE_TOPIC "/access-control-system/space-state"
 
