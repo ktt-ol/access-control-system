@@ -44,9 +44,9 @@
 #define true 1
 #endif
 
-char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+static const char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
-char* modes[] = { "unknown", "none", "keyholder", "member", "public", "open" };
+static const char* modes[] = { "unknown", "none", "keyholder", "member", "public", "open" };
 
 /* (Month) (Day) (Hour):(Minute):(Second) (Hostname) (Processname)[(Processid)]: (Message) */
 //static const char *LOG_REGEX = "^([a-z]{3}) ([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([^ ]+) ([a-zA-Z]+)\\[([0-9]+)\\]: (.*)$";
@@ -57,7 +57,7 @@ static const char *SSH_REGEX = "^Accepted publickey for ([-_\\.a-zA-Z0-9]+) from
 
 FILE *cfg;
 
-pid_t process_get_parent(pid_t pid) {
+static pid_t process_get_parent(pid_t pid) {
 	char path[32];
 	FILE *f;
 	char *line = NULL;
@@ -85,7 +85,7 @@ pid_t process_get_parent(pid_t pid) {
 	return 0;
 }
 
-char* process_get_name(pid_t pid) {
+static char* process_get_name(pid_t pid) {
 	char path[32];
 	FILE *f;
 	char *line = NULL;
@@ -115,7 +115,7 @@ char* process_get_name(pid_t pid) {
 }
 
 
-bool find_sshd_parent(pid_t *pid) {
+static bool find_sshd_parent(pid_t *pid) {
 	char *name;
 	pid_t p;
 
@@ -135,7 +135,7 @@ bool find_sshd_parent(pid_t *pid) {
 	return false;
 }
 
-bool parse_sshd_message(const char *msg, char **ip, char **type, char **fp) {
+static bool parse_sshd_message(const char *msg, char **ip, char **type, char **fp) {
 	pcre *regex;
 	pcre_extra *regex2;
 	const char *pcreErrorStr;
@@ -220,7 +220,7 @@ error:
 	return false;
 }
 
-bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **type, char **fp) {
+static bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **type, char **fp) {
 	FILE *f;
 	char *line = NULL;
 	size_t len;
@@ -361,7 +361,7 @@ bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **type, cha
 	}
 }
 
-char* key2fp(char *key_base64) {
+static char* key2fp(const char *key_base64) {
 	size_t key_base64_len = strlen(key_base64);
 	unsigned char *key_raw = (unsigned char *) malloc(key_base64_len);
 	size_t key_raw_len = 0;
@@ -397,7 +397,7 @@ char* key2fp(char *key_base64) {
 	return result;
 }
 
-bool authorized_keys_get(char *keytype, char *keyfp, char **key, char **comment) {
+static bool authorized_keys_get(char *keytype, char *keyfp, char **key, char **comment) {
 	FILE *f;
 	char *line = NULL;
 	size_t len = 0;
@@ -454,7 +454,7 @@ bool authorized_keys_get(char *keytype, char *keyfp, char **key, char **comment)
 	return false;
 }
 
-char *keycomment2username(char *comment) {
+static char *keycomment2username(const char *comment) {
 	char *split = strchr(comment, '@');
 
 	/* no '@' found, just use whole comment */
@@ -473,7 +473,7 @@ unsigned int str2mode(char *mode) {
 	return 0;
 }
 
-bool parse_arguments(int argc, char **argv, unsigned int *mode, char **msg) {
+static bool parse_arguments(int argc, char **argv, unsigned int *mode, char **msg) {
 	int len;
 
 	/* supplying mode is mandatory */
@@ -522,7 +522,7 @@ error:
 	return false;
 }
 
-bool db_init(sqlite3 **db) {
+static bool db_init(sqlite3 **db) {
 	int err;
 	char *err_msg = NULL;
 
@@ -553,7 +553,7 @@ bool db_init(sqlite3 **db) {
 	return true;
 }
 
-bool db_get_uid(sqlite3 *db, char *username, int *userid) {
+static bool db_get_uid(sqlite3 *db, char *username, int *userid) {
 	int err;
 	sqlite3_stmt *res;
 	char *query;
@@ -579,7 +579,7 @@ bool db_get_uid(sqlite3 *db, char *username, int *userid) {
 	return false;
 }
 
-bool db_update_key(sqlite3 *db, char *fingerprint, int uid, char *keytype, char *base64, char *comment, int last_login) {
+static bool db_update_key(sqlite3 *db, const char *fingerprint, int uid, const char *keytype, const char *base64, const char *comment, int last_login) {
 	int err;
 	sqlite3_stmt *res;
 	char *query;
@@ -607,7 +607,7 @@ bool db_update_key(sqlite3 *db, char *fingerprint, int uid, char *keytype, char 
 		return false;
 }
 
-bool db_insert_log(sqlite3 *db, time_t login_time, int userid, char *ip, char *keyfp, int mode, char *msg) {
+static bool db_insert_log(sqlite3 *db, time_t login_time, int userid, const char *ip, const char *keyfp, int mode, const char *msg) {
 	int err;
 	sqlite3_stmt *res;
 	char *query;
@@ -637,7 +637,7 @@ bool db_insert_log(sqlite3 *db, time_t login_time, int userid, char *ip, char *k
 		return false;
 }
 
-bool write_file(char *dir, char *filename, char *data) {
+static bool write_file(const char *dir, const char *filename, const char *data) {
 	size_t written;
 	size_t len = strlen(data);
 	FILE *f;
