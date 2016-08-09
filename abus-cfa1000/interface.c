@@ -63,6 +63,9 @@ static struct display_data_t display_decode(uint16_t val) {
 
 	val &= ~(DISP_LOCKED | DISP_UNLOCKED);
 	switch(val) {
+		case 0x0000:
+			data.symbol = ' ';
+			break;
 		case DISPLAY_M:
 			data.symbol = 'M';
 			break;
@@ -91,7 +94,7 @@ static struct display_data_t display_decode(uint16_t val) {
 			data.symbol = '|';
 			break;
 		default:
-			data.symbol = '\0';
+			data.symbol = '?';
 			break;
 	}
 
