@@ -11,7 +11,7 @@
 int dev;
 int irq;
 
-#define TOPIC "/access-control-system/main-door/lock-state"
+#define TOPIC "/access-control-system/main-door/bolt-state"
 
 #define GPIO_TIMEOUT 5 * 60 * 1000
 
@@ -134,10 +134,16 @@ int main(int argc, char **argv) {
 	for (;;) {
 		struct display_data_t disp = display_read(dev);
 		char *state = lock_state_str(disp.state);
-		fprintf(stderr, "Display: %c state=%s\n", disp.symbol, state);
+		fprintf(stderr, "state=%s (disp=%c)\n", state, disp.symbol);
+
+		uint8_t mqtt_state = -1;
+		if(disp.state == LOCK_STATE_LOCKED)
+			mqtt_state = '1';
+		else if(disp.state == LOCK_STATE_UNLOCKED)
+			mqtt_state = '0';
 
 		/* publish state */
-		ret = mosquitto_publish(mosq, NULL, TOPIC, strlen(state), state, 0, true);
+		ret = mosquitto_publish(mosq, NULL, TOPIC, 1, &mqtt_state, 0, true);
 		if (ret) {
 			fprintf(stderr, "Error could not send message: %d\n", ret);
 			return 1;
