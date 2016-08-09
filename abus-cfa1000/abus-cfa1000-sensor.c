@@ -27,11 +27,28 @@ static void on_connect(struct mosquitto *m, void *udata, int res) {
 }
 
 static void on_publish(struct mosquitto *m, void *udata, int m_id) {
-	fprintf(stderr, "Message published.\n");
+	fprintf(stdout, "Message published.\n");
 }
 
 static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
 	fprintf(stdout, "[%d] %s\n", level, str);
+}
+
+static int publish_state(struct mosquitto *mosq, enum lock_state state) {
+	int ret;
+	char *mqtt_state = "-1";
+	if(state == LOCK_STATE_LOCKED)
+		mqtt_state = "1";
+	else if(state == LOCK_STATE_UNLOCKED)
+		mqtt_state = "0";
+
+	ret = mosquitto_publish(mosq, NULL, TOPIC, strlen(mqtt_state), mqtt_state, 0, true);
+	if (ret) {
+		fprintf(stderr, "Error could not send message: %d\n", ret);
+		return 1;
+	}
+
+	return 0;
 }
 
 int main(int argc, char **argv) {
@@ -131,31 +148,25 @@ int main(int argc, char **argv) {
 	fdset.fd = irq;
 	fdset.events = POLLPRI;
 
+	struct display_data_t olddisp = { .symbol = '\0', .state = LOCK_STATE_UNKNOWN };
 	for (;;) {
+		char irqstate = gpio_read(irq);
 		struct display_data_t disp = display_read(dev);
 		char *state = lock_state_str(disp.state);
-		fprintf(stderr, "state=%s (disp=%c)\n", state, disp.symbol);
 
-		char *mqtt_state = "-1";
-		if(disp.state == LOCK_STATE_LOCKED)
-			mqtt_state = "1";
-		else if(disp.state == LOCK_STATE_UNLOCKED)
-			mqtt_state = "0";
+		if (olddisp.symbol != disp.symbol || olddisp.state != disp.state)
+			fprintf(stderr, "state=%s (disp=%c) [irq=%d]\n", state, disp.symbol, irqstate);
 
-		/* publish state */
-		ret = mosquitto_publish(mosq, NULL, TOPIC, strlen(mqtt_state), mqtt_state, 0, true);
-		if (ret) {
-			fprintf(stderr, "Error could not send message: %d\n", ret);
-			return 1;
-		}
+		if (olddisp.state != disp.state)
+			publish_state(mosq, disp.state);
+
+		olddisp = disp;
 
 		ret = poll(&fdset, 1, GPIO_TIMEOUT);
 		if(ret < 0) {
 				fprintf(stderr, "Failed to poll gpio: %d\n", ret);
 				return 1;
 		}
-		if(gpio_read(irq) == 1)
-				printf("IRQ received!\n");
 	}
 
 	i2c_close(dev);
