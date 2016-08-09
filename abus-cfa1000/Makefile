@@ -1,11 +1,12 @@
-abus-cfa1000: abus-cfa1000.o ../common/config.o
-abus-cfa1000.o: abus-cfa1000.c ../common/config.h
-../common/config.o: ../common/config.c ../common/config.h
+LIBS=-lmosquitto
+LDFLAGS+=${LIBS}
+
+abus-cfa1000-sensor: abus-cfa1000-sensor.o interface.o ../common/config.o ../common/i2c.o ../common/gpio.o
 
 clean:
-	rm -f acs-abus-cfa1000 abus-cfa1000.o ../common/config.o
+	rm -f acs-abus-cfa1000-sensor acs-abus-cfa1000-sensor.o
 
 install:
-	install -m755 abus-cfa1000 $(DESTDIR)/usr/sbin/acs-abus-cfa1000
+	install -m755 abus-cfa1000-sensor $(DESTDIR)/usr/sbin/acs-abus-cfa1000-sensor
 
 .PHONY: clean install
