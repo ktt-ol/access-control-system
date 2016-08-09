@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
 	for (;;) {
 		struct display_data_t disp = display_read(dev);
 		char *state = lock_state_str(disp.state);
-		printf("Display: %c state=%s\n", disp.symbol, state);
+		fprintf(stderr, "Display: %c state=%s\n", disp.symbol, state);
 
 		/* publish state */
 		ret = mosquitto_publish(mosq, NULL, TOPIC, strlen(state), state, 0, true);
@@ -149,7 +149,7 @@ int main(int argc, char **argv) {
 				return 1;
 		}
 		if(gpio_read(irq) == 1)
-				fprintf(stderr, "IRQ received!\n");
+				printf("IRQ received!\n");
 	}
 
 	i2c_close(dev);
