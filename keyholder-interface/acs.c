@@ -411,8 +411,10 @@ static bool authorized_keys_get(char *keytype, char *keyfp, char **key, char **c
 	char *keyfile = cfg_get_default(cfg, "ssh-keyfile", strdup(SSHKEYFILE));
 	f = fopen(keyfile, "r");
 	free(keyfile);
-	if (!f)
+	if (!f) {
+		fprintf(stderr, "Could not open keyfile!\n");
 		return false;
+	}
 
 	// Format: "ssh-(type) (base64'd pubkey) (comment)"
 	while ((read = getline(&line, &len, f)) != -1) {
