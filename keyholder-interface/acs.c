@@ -114,7 +114,7 @@ static bool find_sshd_parent(pid_t *pid) {
 		name = process_get_name(p);
 
 		if (!strcmp(name, SSHDNAME)) {
-			*pid = p;
+			*pid = (getuid() == 0) ? p : process_get_parent(p);
 			free(name);
 			return true;
 		}
