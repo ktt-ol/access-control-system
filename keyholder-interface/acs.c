@@ -1,7 +1,7 @@
 /*
  * Access Control System
  *
- * Copyright (c) 2015, Sebastian Reichel <sre@mainframe.io>
+ * Copyright (c) 2015-2016, Sebastian Reichel <sre@mainframe.io>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -32,6 +32,8 @@
 #include <openssl/evp.h>
 
 #include "../common/config.h"
+
+#define ARRAYSIZE(x) (sizeof(x)/sizeof(x[0]))
 
 #define SSHDNAME "sshd"
 
@@ -458,7 +460,7 @@ static char *keycomment2username(const char *comment) {
 }
 
 unsigned int str2mode(char *mode) {
-	for(unsigned int i=0; i < sizeof(modes); i++) {
+	for(unsigned int i=0; i < ARRAYSIZE(modes); i++) {
 		if(!strcmp(mode, modes[i]))
 			return i;
 	}
@@ -466,53 +468,40 @@ unsigned int str2mode(char *mode) {
 	return 0;
 }
 
-static bool parse_arguments(int argc, char **argv, unsigned int *mode, char **msg) {
-	int len;
+static bool parse_argument(char *command, unsigned int *mode, char **msg) {
+	char *arg, *tmp;
 
-	/* supplying mode is mandatory */
-	if (argc < 2)
-		goto error;
-	
+	if (strncmp(command, "set-status ", strlen("set-status "))) {
+		fprintf(stderr, "Currently only 'set-status' command is supported!\n");
+		return false;
+	}
+	command += strlen("set-status ");
+
+	tmp = strchr(command, ' ');
+	if (tmp)
+		arg = strndup(command, tmp-command);
+	else
+		arg = strdup(command);
+
 	/* supplied mode does not exist */
-	*mode = str2mode(argv[1]);
-	if (*mode <= 0 || *mode >= sizeof(modes))
-		goto error;
-
-	if (argc < 3) {
-		*msg = strdup("");
-		return true;
+	*mode = str2mode(arg);
+	if (*mode <= 0 || *mode >= ARRAYSIZE(modes)) {
+		fprintf(stderr, "Invalid Mode: %s\n", arg);
+		fprintf(stderr, "Possible modes:\n");
+		fprintf(stderr, "\tnone      - space is closed, nobody must be inside\n");
+		fprintf(stderr, "\tkeyholder - space is closed, keyholder is inside\n");
+		fprintf(stderr, "\tmember    - space is open, but only for members\n");
+		fprintf(stderr, "\tpublic    - space is open, guests may ring the bell\n");
+		fprintf(stderr, "\topen      - space is open, everyone can open the door\n");
+		return false;
 	}
 
-	*msg = strdup(argv[2]);
-	len = strlen(*msg);
+	free(arg);
 
-	for (int i=3; i < argc; i++) {
-		int arglen = strlen(argv[i]);
-		if (!realloc(*msg, len + arglen + 1)) {
-			free(*msg);
-			fprintf(stderr, "Out of memory!\n");
-			return false;
-		}
-		(*msg)[len] = ' ';
-		memcpy(*msg+len+1, argv[i], arglen);
-		(*msg)[len+arglen+1] = '\0';
-		len += arglen + 1;
-	}
+	/* optional message */
+	*msg = strdup(tmp ? (tmp + 1) : "");
 
 	return true;
-
-error:
-	fprintf(stderr, "Usage: %s <mode> [msg...]\n\n", argv[0]);
-	fprintf(stderr, "Possible modes:\n");
-	fprintf(stderr, "\tnone      - space is closed, nobody must be inside\n");
-	fprintf(stderr, "\tkeyholder - space is closed, keyholder is inside\n");
-	fprintf(stderr, "\tmember    - space is open, but only for members\n");
-	fprintf(stderr, "\tpublic    - space is open, guests may ring the bell\n");
-	fprintf(stderr, "\topen      - space is open, everyone can open the door\n");
-	fprintf(stderr, "\n");
-	fprintf(stderr, "This command will set the space status to the described mode.\n");
-	fprintf(stderr, "An optional human readable message can be supplied by the keyholder.\n");
-	return false;
 }
 
 static bool db_init(sqlite3 **db) {
@@ -659,14 +648,19 @@ int main(int argc, char **argv) {
 	time_t logintime;
 	int keyuid;
 	char *ip, *keytype, *keyfp, *keydata, *keycomment, *keyuser;
-	sqlite3 *db;
+	sqlite3 *db = NULL;
 	unsigned int mode;
 	char *msg = NULL;
 	char *keyuidstr = NULL;
 
 	cfg = cfg_open();
 
-	if (!parse_arguments(argc, argv, &mode, &msg))
+	if (argc != 3 || strcmp(argv[1], "-c")) {
+		fprintf(stderr, "What do you think I am? A shell?\n");
+		goto error;
+	}
+
+	if (!parse_argument(argv[2], &mode, &msg))
 		goto error;
 
 	if (!db_init(&db))
@@ -718,7 +712,7 @@ int main(int argc, char **argv) {
 	write_file(statedir, "message", msg);
 	free(statedir);
 
-	printf("SSH Key %s accepted!\n\n", keyfp);
+	//printf("SSH Key %s accepted!\n\n", keyfp);
 	printf("Keyholder: %s (%d)\n", keyuser, keyuid);
 	printf("Status:    %s (%d)\n", modes[mode], mode);
 	printf("Message:   %s\n", msg);
