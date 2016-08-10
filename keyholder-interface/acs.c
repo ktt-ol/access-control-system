@@ -392,12 +392,11 @@ static char* key2fp(const char *key_base64) {
 	return result;
 }
 
-static bool authorized_keys_get(char *keytype, char *keyfp, char **key, char **comment) {
+static bool authorized_keys_get(char *keyfp, char **key, char **comment) {
 	FILE *f;
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
-	size_t keytypelen = strlen(keytype);
 
 	char *kd, *kc;
 
@@ -409,19 +408,16 @@ static bool authorized_keys_get(char *keytype, char *keyfp, char **key, char **c
 		return false;
 	}
 
-	// Format: "ssh-(type) (base64'd pubkey) (comment)"
+	// Format: "(type) (base64'd pubkey) (comment)"
 	while ((read = getline(&line, &len, f)) != -1) {
-		if (read < 4) {
+		/* skip keytype */
+		kd = strchr(line, ' ');
+		if (kd == NULL) {
 			fprintf(stderr, "Malformed authorized_keys file!\n");
-			break;
-		}
-
-		if (strncasecmp(keytype, line+4, keytypelen)) {
-			/* keytype mismatch */
 			continue;
 		}
+		kd++;
 
-		kd = line + 4 + keytypelen + 1; 
 		kc = strchr(kd, ' ');
 		if (!kc) {
 			fprintf(stderr, "Malformed authorized_keys file!\n");
@@ -684,7 +680,7 @@ int main(int argc, char **argv) {
 	if (!log_get_fingerprint(pid, &logintime, &ip, &keytype, &keyfp))
 		goto error;
 
-	if (!authorized_keys_get(keytype, keyfp, &keydata, &keycomment))
+	if (!authorized_keys_get(keyfp, &keydata, &keycomment))
 		goto error;
 
 	keyuser = keycomment2username(keycomment);
