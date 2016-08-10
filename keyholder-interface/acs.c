@@ -374,6 +374,8 @@ static char* key2fp(const char *key_base64) {
 	char *result;
 
 	key_raw_len = EVP_DecodeBlock(key_raw, (unsigned char *) key_base64, key_base64_len); 
+	for(int i=key_base64_len-1; key_base64[i] == '='; i--)
+		key_raw_len--;
 
 	EVP_MD_CTX_init(&mdctx);
 	EVP_DigestInit_ex(&mdctx, EVP_md5(), NULL);
