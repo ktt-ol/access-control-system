@@ -652,7 +652,7 @@ static bool write_file(const char *dir, const char *filename, const char *data) 
 	char *path = malloc(pathlen);
 	snprintf(path, pathlen, "%s/%s", dir, filename);
 
-	f = fopen(filename, "w");
+	f = fopen(path, "w");
 	if (!f)
 		return false;
 	
