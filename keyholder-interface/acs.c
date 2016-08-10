@@ -21,6 +21,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -33,16 +34,6 @@
 #include "../common/config.h"
 
 #define SSHDNAME "sshd"
-
-#ifndef bool
-#define bool char
-#endif
-#ifndef false
-#define false 0
-#endif
-#ifndef true
-#define true 1
-#endif
 
 static const char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
