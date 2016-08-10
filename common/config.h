@@ -1,6 +1,12 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
+#if defined(__GNUC__)
+#define __maybe_unused __attribute__((__unused__))
+#else
+#define __maybe_unused
+#endif
+
 #include "gpio.h"
 
 #define CONFIGFILE "/etc/access-control-system.conf"
@@ -9,12 +15,14 @@
 
 #define SSHLOGFILE "/var/log/auth.log"
 #define SSHKEYFILE "/home/keyholder/.ssh/authorized_keys"
-#define DATABASE "/var/lib/access-control-system"
-#define STATEDIR "/run/access-control-system/"
+#define DATABASE "/var/lib/acs.db"
+#define STATEDIR "/run/acs-state/"
 
-#define MQTT_BROKER_HOST "localhost"
+
+#define MQTT_BROKER_HOST "spacegate.mainframe.lan"
 #define MQTT_BROKER_PORT 8883
-#define MQTT_BROKER_CERT ""
+#define MQTT_BROKER_CERT "spacegate.crt"
+
 #define MQTT_USERNAME ""
 #define MQTT_PASSWORD ""
 #define MQTT_KEEPALIVE_SECONDS 60
@@ -37,7 +45,7 @@ struct gpio_desc {
 	enum gpio_direction direction;
 };
 
-static struct gpio_desc gpios[] = {
+static struct gpio_desc __maybe_unused gpios[] = {
 	{ "status-switch-top", 27, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
 	{ "status-switch-bottom", 22, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
 	{ "glass-door-bolt-switch", 4, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
