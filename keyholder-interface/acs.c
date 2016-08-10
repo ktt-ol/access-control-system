@@ -715,7 +715,7 @@ int main(int argc, char **argv) {
 
 	char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
 	/* current status is available from simple files */
-	if (mkdir(statedir, mode) && errno != -EEXIST) {
+	if (mkdir(statedir, mode) && errno != EEXIST) {
 		fprintf(stderr, "Could not create statedir '%s'!\n", statedir);
 		goto error;
 	}
