@@ -236,6 +236,8 @@ static bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **ty
 	time_t rawtime;
 	pid_t logpid;
 
+	*logtime = 0;
+
 	regex = pcre_compile(LOG_REGEX, 0, &pcreErrorStr, &pcreErrorOffset, NULL);
 	if (!regex) {
 		fprintf(stderr, "Could not compile regex: %s\n", pcreErrorStr);
