@@ -39,7 +39,7 @@
 
 static const char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
-static const char* modes[] = { "unknown", "none", "keyholder", "member", "public", "open" };
+static const char* modes[] = { "unknown", "none", "keyholder", "member", "open", "open+" };
 
 /* (Month) (Day) (Hour):(Minute):(Second) (Hostname) (Processname)[(Processid)]: (Message) */
 //static const char *LOG_REGEX = "^([a-z]{3}) ([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([^ ]+) ([a-zA-Z]+)\\[([0-9]+)\\]: (.*)$";
@@ -491,8 +491,8 @@ static bool parse_argument(char *command, unsigned int *mode, char **msg) {
 		fprintf(stderr, "\tnone      - space is closed, nobody must be inside\n");
 		fprintf(stderr, "\tkeyholder - space is closed, keyholder is inside\n");
 		fprintf(stderr, "\tmember    - space is open, but only for members\n");
-		fprintf(stderr, "\tpublic    - space is open, guests may ring the bell\n");
-		fprintf(stderr, "\topen      - space is open, everyone can open the door\n");
+		fprintf(stderr, "\topen      - space is open, guests may ring the bell\n");
+		fprintf(stderr, "\topen+     - space is open, everyone can open the door\n");
 		return false;
 	}
 

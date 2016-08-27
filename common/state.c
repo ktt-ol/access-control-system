@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include "state.h"
 
-const char* states[] = { "unknown", "none", "keyholder", "member", "public", "open" };
+const char* states[] = { "unknown", "none", "keyholder", "member", "open", "open+" };
 
 static bool file_write(const char *dir, const char *filename, const char *data) {
 	size_t written;
