@@ -27,7 +27,8 @@
 
 #define TOPIC_KEYHOLDER_ID "/access-control-system/keyholder/id"
 #define TOPIC_KEYHOLDER_NAME "/access-control-system/keyholder/name"
-#define TOPIC_STATE "/access-control-system/state"
+#define TOPIC_STATE_CUR "/access-control-system/space-state"
+#define TOPIC_STATE_NEXT "/access-control-system/space-state-next"
 #define TOPIC_MESSAGE "/access-control-system/message"
 
 #define FILE_TIMEOUT 30
@@ -37,15 +38,17 @@ struct acs_files {
 	FILE *keyholder_id;
 	FILE *keyholder_name;
 	FILE *status;
+	FILE *status_next;
 	FILE *message;
 
-	struct pollfd fdset[4];
+	struct pollfd fdset[5];
 };
 
 struct acs_state {
 	char *keyholder_id;
 	char *keyholder_name;
 	char *status;
+	char *status_next;
 	char *message;
 };
 
@@ -86,11 +89,18 @@ static int acsf_init(char *statedir, struct acs_files *acsf) {
 		goto fail3;
 	}
 
+	snprintf(path, pathlen, "%s/status-next", statedir);
+	acsf->status_next = fopen(path, "r");
+	if (!acsf->status_next) {
+		fprintf(stderr, "could not open space-status-next state file");
+		goto fail4;
+	}
+
 	snprintf(path, pathlen, "%s/message", statedir);
 	acsf->message = fopen(path, "r");
 	if (!acsf->message) {
 		fprintf(stderr, "could not open space-message state file");
-		goto fail4;
+		goto fail5;
 	}
 
 	free(path);
@@ -102,12 +112,19 @@ static int acsf_init(char *statedir, struct acs_files *acsf) {
 	acsf->fdset[1].events = POLLPRI;
 	acsf->fdset[2].fd = fileno(acsf->status);
 	acsf->fdset[2].events = POLLPRI;
-	acsf->fdset[3].fd = fileno(acsf->message);
+	acsf->fdset[3].fd = fileno(acsf->status_next);
 	acsf->fdset[3].events = POLLPRI;
+	acsf->fdset[4].fd = fileno(acsf->message);
+	acsf->fdset[4].events = POLLPRI;
 
 	return 0;
 
-	/* fclose(acsf->message); */
+#if 0
+fail6:
+	fclose(acsf->message);
+#endif
+fail5:
+	fclose(acsf->status_next);
 fail4:
 	fclose(acsf->status);
 fail3:
@@ -137,6 +154,11 @@ static int acsf_read(struct acs_files *acsf, struct acs_state *acss) {
 		return -1;
 	acss->status = strndup(line, strlen(line)-1);
 
+	read = getline(&line, &len, acsf->status_next);
+	if (read > 0)
+		return -1;
+	acss->status_next = strndup(line, strlen(line)-1);
+
 	read = getline(&line, &len, acsf->message);
 	if (read > 0)
 		return -1;
@@ -151,6 +173,8 @@ static unsigned char acs_cmp(struct acs_state *a, struct acs_state *b) {
 	if (strcmp(a->keyholder_name, b->keyholder_name))
 		return 1;
 	if (strcmp(a->status, b->status))
+		return 1;
+	if (strcmp(a->status_next, b->status_next))
 		return 1;
 	if (strcmp(a->message, b->message))
 		return 1;
@@ -270,7 +294,13 @@ int main(int argc, char **argv) {
 				return 1;
 			}
 
-			ret = mosquitto_publish(mosq, NULL, TOPIC_STATE, strlen(acss.status), acss.status, 0, true);
+			ret = mosquitto_publish(mosq, NULL, TOPIC_STATE_CUR, strlen(acss.status), acss.status, 0, true);
+			if (ret) {
+				fprintf(stderr, "Error could not send message: %d\n", ret);
+				return 1;
+			}
+
+			ret = mosquitto_publish(mosq, NULL, TOPIC_STATE_NEXT, strlen(acss.status_next), acss.status_next, 0, true);
 			if (ret) {
 				fprintf(stderr, "Error could not send message: %d\n", ret);
 				return 1;

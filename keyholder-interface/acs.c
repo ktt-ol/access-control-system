@@ -709,6 +709,7 @@ int main(int argc, char **argv) {
 	free(keyuidstr);
 	write_file(statedir, "keyholder-name", keyuser);
 	write_file(statedir, "status", modes[mode]);
+	write_file(statedir, "status-next", "");
 	write_file(statedir, "message", msg);
 	free(statedir);
 
