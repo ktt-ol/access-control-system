@@ -31,18 +31,22 @@
 const static char* states[] = {
 	"unknown",
 	"disconnected",
-	"opened",
-	"closing",
-	"closed",
+	"none",
+	"keyholder",
+	"member",
+	"open",
+	"open+",
 };
 
 /* order should match states[] */
 enum states2 {
 	STATE_UNKNOWN,
 	STATE_DISCONNECTED,
-	STATE_OPENED,
-	STATE_CLOSING,
-	STATE_CLOSED,
+	STATE_NONE,
+	STATE_KEYHOLDER,
+	STATE_MEMBER,
+	STATE_OPEN,
+	STATE_OPEN_PLUS,
 	STATE_MAX,
 };
 
@@ -150,16 +154,27 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 
 	udata->eventinprogress = true;
 
-	if(udata->state == STATE_OPENED) {
-		gpio_write(udata->buzzer, true);
-		alarm(5);
-	} else if(udata->state == STATE_CLOSING) {
-		gpio_write(udata->buzzer, true);
-		gpio_write(udata->bell, true);
-		alarm(1);
-	} else {
-		gpio_write(udata->bell, true);
-		alarm(1);
+	switch(udata->state) {
+		case STATE_OPEN_PLUS:
+			gpio_write(udata->buzzer, true);
+			alarm(3);
+			break;
+		case STATE_OPEN:
+			gpio_write(udata->buzzer, true);
+			alarm(3);
+			break;
+		case STATE_MEMBER:
+		case STATE_KEYHOLDER:
+			gpio_write(udata->buzzer, true);
+			gpio_write(udata->bell, true);
+			alarm(1);
+			break;
+		case STATE_NONE:
+		case STATE_UNKNOWN:
+		case STATE_DISCONNECTED:
+			gpio_write(udata->bell, true);
+			alarm(1);
+			break;
 	}
 }
 

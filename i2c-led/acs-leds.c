@@ -25,30 +25,44 @@
 #include "../common/config.h"
 #include "../common/i2c.h"
 
-#define STATE_TOPIC "/access-control-system/space-state"
+#define BLACK  0x000000
+#define YELLOW 0x404000
+#define ORANGE 0x802000
+#define GREEN  0x008000
+#define RED    0x800000
+#define PURPLE 0x300020
+#define BLUE   0x000080
+#define CYAN   0x004015
+
+#define TOPIC_STATE_CUR "/access-control-system/space-state"
+#define TOPIC_STATE_NEXT "/access-control-system/space-state-next"
 
 const static char* states[] = {
 	"unknown",
 	"disconnected",
-	"opened",
-	"closing",
-	"closed",
+	"none",
+	"keyholder",
+	"member",
+	"open",
+	"open+",
 };
 
 /* order should match states[] */
 enum states2 {
 	STATE_UNKNOWN,
 	STATE_DISCONNECTED,
-	STATE_OPENED,
-	STATE_CLOSING,
-	STATE_CLOSED,
+	STATE_NONE,
+	STATE_KEYHOLDER,
+	STATE_MEMBER,
+	STATE_OPEN,
+	STATE_OPEN_PLUS,
 	STATE_MAX,
 };
 
 struct userdata {
 	int i2c;
 	enum states2 curstate;
-	enum states2 laststate;
+	enum states2 nextstate;
 };
 
 static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
@@ -123,40 +137,69 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 }
 
 
-static void display_state(struct userdata *udata, int state) {
-	printf("state: %s\n", states[state]);
-	udata->curstate = state;
+static void display_state(struct userdata *udata, int curstate, int nextstate) {
+	printf("curstate: %s - nextstate: %s\n", states[curstate], states[nextstate]);
+	udata->curstate = curstate;
+	udata->nextstate = nextstate;
 
-	switch(state) {
-		case STATE_OPENED:
-			sed_multi_led(udata, LOCATION_ALL, 0x008000);
+	uint32_t color = BLACK;
+
+	switch(curstate) {
+		case STATE_OPEN_PLUS:
+			color = CYAN;
 			break;
-		case STATE_CLOSING:
-			sed_multi_led(udata, LOCATION_ALL, 0x404000);
+		case STATE_OPEN:
+			color = GREEN;
 			break;
-		case STATE_CLOSED:
-			sed_multi_led(udata, LOCATION_ALL, 0x800000);
+		case STATE_KEYHOLDER:
+			color = PURPLE;
+			break;
+		case STATE_MEMBER:
+			color = YELLOW;
+			break;
+		case STATE_NONE:
+			color = RED;
 			break;
 		case STATE_UNKNOWN:
 		default:
-			sed_multi_led(udata, LOCATION_ALL, 0x000080);
+			color = BLUE;
 			break;
 	}
+
+	switch(nextstate) {
+		case STATE_NONE:
+		case STATE_KEYHOLDER:
+		case STATE_MEMBER:
+			/* space is closing for guests */
+			color = ORANGE;
+		case STATE_OPEN:
+		case STATE_OPEN_PLUS:
+		case STATE_UNKNOWN:
+		default:
+			/* ignore and use current state */
+			break;
+	}
+
+	sed_multi_led(udata, LOCATION_ALL, color);
 }
 
 static void on_connect(struct mosquitto *m, void *data, int res) {
 	int ret;
 	struct userdata *udata = (struct userdata*) data;
 
-	fprintf(stderr, "Connected, laststate=%s.\n", states[udata->laststate]);
-	display_state(udata, udata->laststate);
+	fprintf(stderr, "Connected!\n");
 
-	ret = mosquitto_subscribe(m, NULL, STATE_TOPIC, 1);
+	ret = mosquitto_subscribe(m, NULL, TOPIC_STATE_CUR, 1);
 	if (ret) {
-		fprintf(stderr, "Error could not subscribe to %s: %d\n", STATE_TOPIC, ret);
+		fprintf(stderr, "Error could not subscribe to %s: %d\n", TOPIC_STATE_CUR, ret);
 		exit(1);
 	}
-}
+
+	ret = mosquitto_subscribe(m, NULL, TOPIC_STATE_NEXT, 1);
+	if (ret) {
+		fprintf(stderr, "Error could not subscribe to %s: %d\n", TOPIC_STATE_NEXT, ret);
+		exit(1);
+	}}
 
 static void on_disconnect(struct mosquitto *m, void *data, int res) {
 	struct userdata *udata = (struct userdata*) data;
@@ -165,36 +208,41 @@ static void on_disconnect(struct mosquitto *m, void *data, int res) {
 	if(udata->curstate == STATE_DISCONNECTED)
 		return;
 
-	udata->laststate = udata->curstate;
-
-	fprintf(stderr, "Disconnected, laststate=%s.\n", states[udata->laststate]);
-	display_state(udata, STATE_DISCONNECTED);
+	fprintf(stderr, "Disconnected\n");
+	display_state(udata, STATE_DISCONNECTED, STATE_UNKNOWN);
 }
 
-static void on_message(struct mosquitto *m, void *udata, const struct mosquitto_message *msg) {
-	int i;
+static enum states2 str2state(char *state, uint32_t len) {
 	int curstate = STATE_UNKNOWN;
-
-	/* wrong */
-	if(strcmp(STATE_TOPIC, msg->topic)) {
-		fprintf(stderr, "Ignored message with wrong topic\n");
-		return;
-	}
+	int i;
 
 	for(i=0; i < STATE_MAX; i++) {
-		if(!strncmp(states[i], msg->payload, msg->payloadlen)) {
+		if (strlen(states[i]) != len)
+			continue;
+
+		if(!strncmp(states[i], state, len)) {
 			curstate = i;
 			break;
 		}
 	}
 
-	if(curstate == STATE_UNKNOWN) {
-		char *m = strndup(msg->payload, msg->payloadlen);
-		fprintf(stderr, "Incorrect state received: %s\n", m);
-		free(m);
+	return curstate;
+}
+
+static void on_message(struct mosquitto *m, void *udata, const struct mosquitto_message *msg) {
+	/* wrong */
+	if(!strcmp(TOPIC_STATE_CUR, msg->topic)) {
+		int curstate = str2state(msg->payload, msg->payloadlen);
+		display_state(udata, curstate, ((struct userdata *) udata)->nextstate);
+		return;
+	} else if(!strcmp(TOPIC_STATE_NEXT, msg->topic)) {
+		int nextstate = str2state(msg->payload, msg->payloadlen);
+		display_state(udata, ((struct userdata *) udata)->curstate, nextstate);
+		return;
 	}
 
-	display_state(udata, curstate);
+	fprintf(stderr, "Ignored message with wrong topic\n");
+	return;
 }
 
 int main(int argc, char **argv) {
@@ -220,8 +268,8 @@ int main(int argc, char **argv) {
 		printf("out of memory!\n");
 		return 1;
 	}
-	udata->laststate = STATE_UNKNOWN;
 	udata->curstate = STATE_UNKNOWN;
+	udata->nextstate = STATE_UNKNOWN;
 
 	/* create mosquitto client instance */
 	mosq = mosquitto_new("space-status-leds", true, udata);
@@ -237,7 +285,7 @@ int main(int argc, char **argv) {
 	}
 
 	/* initial state unknown */
-	display_state(udata, STATE_UNKNOWN);
+	display_state(udata, STATE_UNKNOWN, STATE_UNKNOWN);
 
 	/* setup callbacks */
 	mosquitto_connect_callback_set(mosq, on_connect);

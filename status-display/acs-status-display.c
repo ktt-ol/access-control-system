@@ -24,18 +24,22 @@
 const static char* states[] = {
 	"unknown",
 	"disconnected",
-	"opened",
-	"closing",
-	"closed",
+	"none",
+	"keyholder",
+	"member",
+	"open",
+	"open+",
 };
 
 /* order should match states[] */
 enum states2 {
 	STATE_UNKNOWN,
 	STATE_DISCONNECTED,
-	STATE_OPENED,
-	STATE_CLOSING,
-	STATE_CLOSED,
+	STATE_NONE,
+	STATE_KEYHOLDER,
+	STATE_MEMBER,
+	STATE_OPEN,
+	STATE_OPEN_PLUS,
 	STATE_MAX,
 };
 

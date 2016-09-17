@@ -25,15 +25,20 @@
 #include "../common/config.h"
 #include "../common/gpio.h"
 
-#define STATE_TOPIC "/access-control-system/space-state"
+#define TOPIC_CURRENT_STATE "/access-control-system/space-state"
+#define TOPIC_NEXT_STATE "/access-control-system/space-state-next"
 #define GPIO_TIMEOUT 60 * 1000
 
 const static char* states[] = {
-	"opened",
-	"closing",
-	"closed",
+	"switch up (opened)",
+	"switch middle (closing)",
+	"switch down (closed)",
 	"unknown",
 };
+
+#define GPIOS_CLOSING 0x00
+#define GPIOS_CLOSED  0x01
+#define GPIOS_OPENED  0x02
 
 static void on_connect(struct mosquitto *m, void *udata, int res) {
 	fprintf(stderr, "Connected.\n");
@@ -160,16 +165,40 @@ int main(int argc, char **argv) {
 
 		if(gpios != old_gpios) {
 			old_gpios = gpios;
-			const char *state = gpios_decode(gpios);
+			fprintf(stderr, "new state: %s\n", gpios_decode(gpios));
 
-			fprintf(stderr, "new state: %s\n", state);
+			char *state_cur;
+			char *state_next;
+
+			switch(gpios) {
+				case GPIOS_OPENED:
+					state_cur = "open";
+					state_next = "";
+					break;
+				case GPIOS_CLOSED:
+					state_cur = "none";
+					state_next = "";
+					break;
+				case GPIOS_CLOSING:
+					state_cur = "open";
+					state_next = "none";
+					break;
+				default:
+					break;
+			}
 
 			/* publish state */
-			ret = mosquitto_publish(mosq, NULL, STATE_TOPIC, strlen(state), state, 0, true);
+			ret = mosquitto_publish(mosq, NULL, TOPIC_CURRENT_STATE, strlen(state_cur), state_cur, 0, true);
 			if (ret) {
 				fprintf(stderr, "Error could not send message: %d\n", ret);
 				return 1;
 			}
+			ret = mosquitto_publish(mosq, NULL, TOPIC_NEXT_STATE, strlen(state_next), state_next, 0, true);
+			if (ret) {
+				fprintf(stderr, "Error could not send message: %d\n", ret);
+				return 1;
+			}
+
 		} else {
 			fprintf(stdout, "gpios: 0x%02x\n", gpios);
 		}
