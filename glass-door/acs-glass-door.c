@@ -56,6 +56,7 @@ struct userdata {
 	bool eventinprogress;
 	int buzzer;
 	int bell;
+	int timer;
 };
 
 #define GPIO_TIMEOUT 60 * 1000
@@ -167,6 +168,7 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 		case STATE_KEYHOLDER:
 			gpio_write(udata->buzzer, true);
 			gpio_write(udata->bell, true);
+			udata->timer = 2;
 			alarm(1);
 			break;
 		case STATE_NONE:
@@ -196,9 +198,17 @@ static void on_message(struct mosquitto *m, void *data, const struct mosquitto_m
 }
 
 void on_alarm(int signal) {
+	gpio_write(globaludata->bell, false);
+
+	if (globaludata->timer) {
+		int tmp = globaludata->timer;
+		globaludata->timer = 0;
+		alarm(tmp);
+		return;
+	}
+
 	/* disable buzzer and bell */
 	gpio_write(globaludata->buzzer, false);
-	gpio_write(globaludata->bell, false);
 	globaludata->eventinprogress = false;
 }
 
