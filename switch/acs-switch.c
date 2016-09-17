@@ -27,6 +27,11 @@
 
 #define TOPIC_CURRENT_STATE "/access-control-system/space-state"
 #define TOPIC_NEXT_STATE "/access-control-system/space-state-next"
+
+#define TOPIC_KEYHOLDER_ID "/access-control-system/keyholder/id"
+#define TOPIC_KEYHOLDER_NAME "/access-control-system/keyholder/name"
+#define TOPIC_MESSAGE "/access-control-system/message"
+
 #define GPIO_TIMEOUT 60 * 1000
 
 const static char* states[] = {
@@ -194,6 +199,22 @@ int main(int argc, char **argv) {
 				return 1;
 			}
 			ret = mosquitto_publish(mosq, NULL, TOPIC_NEXT_STATE, strlen(state_next), state_next, 0, true);
+			if (ret) {
+				fprintf(stderr, "Error could not send message: %d\n", ret);
+				return 1;
+			}
+
+			ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_ID, strlen("0"), "0", 0, true);
+			if (ret) {
+				fprintf(stderr, "Error could not send message: %d\n", ret);
+				return 1;
+			}
+			ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_NAME, 0, "", 0, true);
+			if (ret) {
+				fprintf(stderr, "Error could not send message: %d\n", ret);
+				return 1;
+			}
+			ret = mosquitto_publish(mosq, NULL, TOPIC_MESSAGE, 0, "", 0, true);
 			if (ret) {
 				fprintf(stderr, "Error could not send message: %d\n", ret);
 				return 1;
