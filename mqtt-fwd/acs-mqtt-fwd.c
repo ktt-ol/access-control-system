@@ -16,6 +16,9 @@
  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+/* for asprintf */
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +26,7 @@
 #include <poll.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/inotify.h>
 #include "../common/config.h"
 
 #define TOPIC_KEYHOLDER_ID "/access-control-system/keyholder/id"
@@ -31,19 +35,19 @@
 #define TOPIC_STATE_NEXT "/access-control-system/space-state-next"
 #define TOPIC_MESSAGE "/access-control-system/message"
 
-#define FILE_TIMEOUT 30
+/* check all 10 minutes even witout inotify event */
+#define POLL_TIMEOUT 10 * 60 * 1000
 
+/* absolute file path */
 struct acs_files {
-	/* file handles */
-	FILE *keyholder_id;
-	FILE *keyholder_name;
-	FILE *status;
-	FILE *status_next;
-	FILE *message;
-
-	struct pollfd fdset[5];
+	char *keyholder_id;
+	char *keyholder_name;
+	char *status;
+	char *status_next;
+	char *message;
 };
 
+/* file content */
 struct acs_state {
 	char *keyholder_id;
 	char *keyholder_name;
@@ -52,122 +56,102 @@ struct acs_state {
 	char *message;
 };
 
+int ifd; /* inotify file descriptor */
+int wfd; /* directory watch file descriptor */
+
 static void on_connect(struct mosquitto *m, void *udata, int res) {
-	printf("Connected.\n");
+	printf("Connected to MQTT.\n");
+}
+
+static void on_disconnect(struct mosquitto *m, void *udata, int res) {
+	fprintf(stderr, "Disconnected from MQTT.\n");
+	exit(1);
 }
 
 static void on_publish(struct mosquitto *m, void *udata, int m_id) {
+#ifdef DEBUG
 	printf("Message published.\n");
+#endif
 }
 
 static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
-	fprintf(stderr, "[%d] %s\n", level, str);
+#ifdef DEBUG
+	printf("[%d] %s\n", level, str);
+#endif
 }
 
 static int acsf_init(char *statedir, struct acs_files *acsf) {
-	size_t pathlen = strlen(statedir) + 16;
-	char *path = malloc(pathlen);
+	int err;
 
-	snprintf(path, pathlen, "%s/keyholder-id", statedir);
-	acsf->keyholder_id = fopen(path, "r");
-	if (!acsf->keyholder_id) {
-		fprintf(stderr, "could not open keyholder-id state file");
-		goto fail1;
-	}
+	err = asprintf(&acsf->keyholder_id, "%s/keyholder-id", statedir);
+	if (err <= 0)
+		return err;
+	
+	err = asprintf(&acsf->keyholder_name, "%s/keyholder-name", statedir);
+	if (err <= 0)
+		return err;
 
-	snprintf(path, pathlen, "%s/keyholder-name", statedir);
-	acsf->keyholder_name = fopen(path, "r");
-	if (!acsf->keyholder_name) {
-		fprintf(stderr, "could not open keyholder-name state file");
-		goto fail2;
-	}
+	err = asprintf(&acsf->status, "%s/status", statedir);
+	if (err <= 0)
+		return err;
 
-	snprintf(path, pathlen, "%s/status", statedir);
-	acsf->status = fopen(path, "r");
-	if (!acsf->status) {
-		fprintf(stderr, "could not open space-status state file");
-		goto fail3;
-	}
+	err = asprintf(&acsf->status_next, "%s/status-next", statedir);
+	if (err <= 0)
+		return err;
 
-	snprintf(path, pathlen, "%s/status-next", statedir);
-	acsf->status_next = fopen(path, "r");
-	if (!acsf->status_next) {
-		fprintf(stderr, "could not open space-status-next state file");
-		goto fail4;
-	}
-
-	snprintf(path, pathlen, "%s/message", statedir);
-	acsf->message = fopen(path, "r");
-	if (!acsf->message) {
-		fprintf(stderr, "could not open space-message state file");
-		goto fail5;
-	}
-
-	free(path);
-	free(statedir);
-
-	acsf->fdset[0].fd = fileno(acsf->keyholder_id);
-	acsf->fdset[0].events = POLLPRI;
-	acsf->fdset[1].fd = fileno(acsf->keyholder_name);
-	acsf->fdset[1].events = POLLPRI;
-	acsf->fdset[2].fd = fileno(acsf->status);
-	acsf->fdset[2].events = POLLPRI;
-	acsf->fdset[3].fd = fileno(acsf->status_next);
-	acsf->fdset[3].events = POLLPRI;
-	acsf->fdset[4].fd = fileno(acsf->message);
-	acsf->fdset[4].events = POLLPRI;
+	err = asprintf(&acsf->message, "%s/message", statedir);
+	if (err <= 0)
+		return err;
 
 	return 0;
+}
 
-#if 0
-fail6:
-	fclose(acsf->message);
-#endif
-fail5:
-	fclose(acsf->status_next);
-fail4:
-	fclose(acsf->status);
-fail3:
-	fclose(acsf->keyholder_name);
-fail2:
-	fclose(acsf->keyholder_id);
-fail1:
-	return errno;
+static char* file_read_line(const char *path) {
+	FILE *f = fopen(path, "r");
+	if (!f) {
+		fprintf(stderr, "could not open %s\n", path);
+		return NULL;
+	}
+
+	char *line = NULL;
+	size_t len = 0, read;
+
+	read = getline(&line, &len, f);
+	if (read < 0) {
+		fprintf(stderr, "could not read %s\n", path);
+		return NULL;
+	}
+
+	/* remove newline */
+	line[strlen(line)-1] = '\0';
+
+	fclose(f);
+
+	return line;
 }
 
 static int acsf_read(struct acs_files *acsf, struct acs_state *acss) {
 	char *line = NULL;
 	size_t len = 0, read;
 
-	read = getline(&line, &len, acsf->keyholder_id);
-	if (read > 0)
-		return -1;
-	acss->keyholder_id = strndup(line, strlen(line)-1);
+	acss->keyholder_id = file_read_line(acsf->keyholder_id);
+	acss->keyholder_name = file_read_line(acsf->keyholder_name);
+	acss->status = file_read_line(acsf->status);
+	acss->status_next = file_read_line(acsf->status_next);
+	acss->message = file_read_line(acsf->message);
 
-	read = getline(&line, &len, acsf->keyholder_name);
-	if (read > 0)
+	if (!acss->keyholder_id || !acss->keyholder_name || !acss->status || !acss->status_next || !acss->message)
 		return -1;
-	acss->keyholder_name = strndup(line, strlen(line)-1);
 
-	read = getline(&line, &len, acsf->status);
-	if (read > 0)
-		return -1;
-	acss->status = strndup(line, strlen(line)-1);
-
-	read = getline(&line, &len, acsf->status_next);
-	if (read > 0)
-		return -1;
-	acss->status_next = strndup(line, strlen(line)-1);
-
-	read = getline(&line, &len, acsf->message);
-	if (read > 0)
-		return -1;
-	acss->message = strndup(line, strlen(line)-1);
-
-	return -1;
+	return 0;
 }
 
 static unsigned char acs_cmp(struct acs_state *a, struct acs_state *b) {
+	if (!a && !b)
+		return 0;
+	if (!a || !b)
+		return 1;
+
 	if (strcmp(a->keyholder_id, b->keyholder_id))
 		return 1;
 	if (strcmp(a->keyholder_name, b->keyholder_name))
@@ -182,10 +166,61 @@ static unsigned char acs_cmp(struct acs_state *a, struct acs_state *b) {
 	return 0;
 }
 
+static void acs_free(struct acs_state *s) {
+	free(s->keyholder_id);
+	free(s->keyholder_name);
+	free(s->status);
+	free(s->status_next);
+	free(s->message);
+}
+
+static void handle_inotify(int fd) {
+	char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+	const struct inotify_event *event;
+	int i;
+	ssize_t len;
+	char *ptr;
+
+	for (;;) {
+		/* Read some events. */
+		len = read(fd, buf, sizeof buf);
+		if (len == -1 && errno != EAGAIN) {
+			perror("read");
+			exit(EXIT_FAILURE);
+		}
+
+		/* If the nonblocking read() found no events to read, then
+		it returns -1 with errno set to EAGAIN. In that case,
+		we exit the loop. */
+		if (len <= 0)
+			break;
+
+		/* Loop over all events in the buffer */
+		printf("modified files: ");
+		for (ptr = buf; ptr < buf + len;
+			ptr += sizeof(struct inotify_event) + event->len) {
+
+			event = (const struct inotify_event *) ptr;
+
+			/* Print the name of the file */
+			if (event->len)
+				printf("%s ", event->name);
+		}
+
+		printf("\n");
+	}
+}
+
 int main(int argc, char **argv) {
 	struct mosquitto *mosq;
 	struct acs_files acsf;
-	struct acs_state acss = {};
+	struct acs_state acss = {
+		.keyholder_id = strdup(""),
+		.keyholder_name = strdup(""),
+		.status = strdup(""),
+		.status_next = strdup(""),
+		.message = strdup(""),
+	};
 	int ret;
 
 	mosquitto_lib_init();
@@ -210,6 +245,7 @@ int main(int argc, char **argv) {
 
 	/* setup callbacks */
 	mosquitto_connect_callback_set(mosq, on_connect);
+	mosquitto_disconnect_callback_set(mosq, on_disconnect);
 	mosquitto_publish_callback_set(mosq, on_publish);
 	mosquitto_log_callback_set(mosq, on_log);
 
@@ -247,15 +283,22 @@ int main(int argc, char **argv) {
 	/* open state files */
 	ret = acsf_init(statedir, &acsf);
 	if (ret) {
+		printf("Could not init acsf!\n");
 		return 1;
 	}
 
-	/* free config values */
-	free(host);
-	free(cert);
-	free(user);
-	free(pass);
-	free(statedir);
+	ifd = inotify_init1(IN_NONBLOCK);
+	if (ifd == -1)
+		return 1;
+
+	printf("Watched state-directory: %s\n", statedir);
+	wfd = inotify_add_watch(ifd, statedir, IN_MODIFY);
+	if (wfd == -1)
+		return 1;
+
+	struct pollfd fdset[1];
+	fdset[0].fd = ifd;
+	fdset[0].events = POLLIN;
 
 	ret = mosquitto_loop_start(mosq);
 	if (ret) {
@@ -266,20 +309,21 @@ int main(int argc, char **argv) {
 	for (;;) {
 		struct acs_state newacss;
 
-		ret = poll(acsf.fdset, 4, FILE_TIMEOUT);
-		if (ret < 0) {
-				fprintf(stderr, "Failed to poll gpios: %d\n", ret);
-				return 1;
-		}
-
 		ret = acsf_read(&acsf, &newacss);
 		if (ret < 0) {
 				fprintf(stderr, "failed to read state: %d\n", ret);
 				return 1;
-		}
-
+		} 
+ 
 		if(acs_cmp(&acss, &newacss)) {
+			acs_free(&acss);
 			acss = newacss;
+
+			printf("Publish new state:\n");
+			printf("  keyholder:   %s (%s)\n", newacss.keyholder_name, newacss.keyholder_id);
+			printf("  status:      %s\n", newacss.status);
+			printf("  status-next: %s\n", newacss.status_next[0] == '\0' ? "--- unset ---" : newacss.status_next);
+			printf("  message:     %s\n", newacss.message[0] == '\0' ? "--- unset ---" : newacss.message);
 
 			/* publish state */
 			ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_ID, strlen(acss.keyholder_id), acss.keyholder_id, 0, true);
@@ -311,10 +355,29 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "Error could not send message: %d\n", ret);
 				return 1;
 			}
+		} else {
+			acs_free(&newacss);
 		}
 
-		sleep(FILE_TIMEOUT);
+		ret = poll(fdset, 1, POLL_TIMEOUT);
+		if (ret < 0) {
+				fprintf(stderr, "Failed to poll gpios: %d\n", ret);
+				return 1;
+		}
+
+		/* wait until all files have been written to reduce MQTT spam  */
+		sleep(1);
+
+		if (fdset[0].revents & POLLIN)
+			handle_inotify(ifd);
 	}
+
+	/* free config values */
+	free(statedir);
+	free(host);
+	free(cert);
+	free(user);
+	free(pass);
 
 	/* cleanup */
 	mosquitto_destroy(mosq);

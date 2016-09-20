@@ -11,4 +11,11 @@ clean:
 install:
 	install -m755 acs-mqtt-fwd $(DESTDIR)/usr/bin/
 
+install-systemd:
+	cp acs-mqtt-fwd.service $(DESTDIR)/lib/systemd/system
+
+enable-systemd:
+	systemctl daemon-reload
+	systemctl enable acs-mqtt-fwd.service
+
 .PHONY: clean install
