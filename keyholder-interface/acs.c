@@ -43,7 +43,7 @@ static const char* modes[] = { "unknown", "none", "keyholder", "member", "open",
 
 /* (Month) (Day) (Hour):(Minute):(Second) (Hostname) (Processname)[(Processid)]: (Message) */
 //static const char *LOG_REGEX = "^([a-z]{3}) ([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([^ ]+) ([a-zA-Z]+)\\[([0-9]+)\\]: (.*)$";
-static const char *LOG_REGEX = "^([A-Z][a-z]{2}) ([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([^ ]+) ([a-zA-Z]+)\\[([0-9]+)\\]: (.*)$";
+static const char *LOG_REGEX = "^([A-Z][a-z]{2}) ([ 0-3][0-9]) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([^ ]+) ([a-zA-Z]+)\\[([0-9]+)\\]: (.*)$";
 
 // ... (username) ... (ip) ... (keytype) ... (keyhash)
 static const char *SSH_REGEX = "^Accepted publickey for ([-_\\.a-zA-Z0-9]+) from ([0-9\\.]+) port [0-9]+ ssh2: ([A-Z0-9]+) ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2})$";
