@@ -30,10 +30,12 @@
 #define ORANGE 0x802000
 #define GREEN  0x008000
 #define RED    0x800000
+#define RED2   0x400000
 #define PURPLE 0x300020
 #define BLUE   0x000080
 #define CYAN   0x004015
 
+#define BOLT_STATE "/access-control-system/main-door/bolt-state"
 #define TOPIC_STATE_CUR "/access-control-system/space-state"
 #define TOPIC_STATE_NEXT "/access-control-system/space-state-next"
 
@@ -63,6 +65,7 @@ struct userdata {
 	int i2c;
 	enum states2 curstate;
 	enum states2 nextstate;
+	bool bolt;
 };
 
 static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
@@ -180,6 +183,10 @@ static void display_state(struct userdata *udata, int curstate, int nextstate) {
 			break;
 	}
 
+	/* closed + LOCKED -> dark red */
+	if (color == RED && udata->bolt)
+		color = RED2;
+
 	sed_multi_led(udata, LOCATION_ALL, color);
 }
 
@@ -188,6 +195,13 @@ static void on_connect(struct mosquitto *m, void *data, int res) {
 	struct userdata *udata = (struct userdata*) data;
 
 	fprintf(stderr, "Connected!\n");
+
+	ret = mosquitto_subscribe(m, NULL, BOLT_STATE, 1);
+	if (ret) {
+		fprintf(stderr, "Error could not subscribe to %s: %d\n", BOLT_STATE, ret);
+		exit(1);
+	}
+
 
 	ret = mosquitto_subscribe(m, NULL, TOPIC_STATE_CUR, 1);
 	if (ret) {
@@ -238,6 +252,10 @@ static void on_message(struct mosquitto *m, void *udata, const struct mosquitto_
 	} else if(!strcmp(TOPIC_STATE_NEXT, msg->topic)) {
 		int nextstate = str2state(msg->payload, msg->payloadlen);
 		display_state(udata, ((struct userdata *) udata)->curstate, nextstate);
+		return;
+	} else if (!strcmp(BOLT_STATE, msg->topic) && msg->payloadlen) {
+		((struct userdata *) udata)->bolt = ((char*) msg->payload)[0] == '1';
+		display_state(udata, ((struct userdata *) udata)->curstate, ((struct userdata *) udata)->nextstate);
 		return;
 	}
 
