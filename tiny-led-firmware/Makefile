@@ -1,8 +1,14 @@
-attiny-sw: main.c light_ws2812.c usiTwiSlave.c
+attiny-sw: main.c ws2812.c i2c.c
 	avr-gcc -mmcu=attiny85 -Os -DF_CPU=8000000 -ffunction-sections -fdata-sections -o $@ $^
 
-main.c: config.h light_ws2812.h usiTwiSlave.h ws2812_config.h
-	@touch main.c
+ws2812.c: ws2812.h config.h
+	@touch $@
+
+i2c.c: i2c.h config.h
+	@touch $@
+
+main.c: ws2812.h i2c.h
+	@touch $@
 
 flash: attiny-sw
 	avrdude -c buspirate -P /dev/ttyUSB0 -p t85 -U flash:w:$<
@@ -10,7 +16,10 @@ flash: attiny-sw
 fuses:
 	avrdude -c buspirate -P /dev/ttyUSB0 -p attiny85 -U lfuse:w:0xe2:m -U hfuse:w:0xdf:m -U efuse:w:0xff:m
 
-clean:
-	rm -f attiny-sw main.o light_ws2812.o usiTwiSlave.o
+check:
+	avr-size --format=avr --mcu=attiny85 attiny-sw
 
-.PHONY: flash fuses clean
+clean:
+	rm -f attiny-sw main.o ws2812.o i2c.o
+
+.PHONY: flash fuses clean check

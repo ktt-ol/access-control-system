@@ -15,7 +15,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include "ws2812_config.h"
+#include "config.h"
 
 /*
  *  Structure of the LED array
@@ -64,7 +64,7 @@ void ws2812_sendarray_mask(uint8_t *array,uint16_t length, uint8_t pinmask);
 #define CONCAT(a, b)            a ## b
 #define CONCAT_EXP(a, b)   CONCAT(a, b)
 
-#define ws2812_PORTREG  CONCAT_EXP(PORT,ws2812_port)
-#define ws2812_DDRREG   CONCAT_EXP(DDR,ws2812_port)
+#define ws2812_PORTREG  CONCAT_EXP(PORT,WS2812_PORT)
+#define ws2812_DDRREG   CONCAT_EXP(DDR,WS2812_PORT)
 
 #endif /* LIGHT_WS2812_H_ */

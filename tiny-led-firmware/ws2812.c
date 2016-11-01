@@ -10,15 +10,15 @@
 * License: GNU GPL v2 (see License.txt)
 */
 
-#include "light_ws2812.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <util/delay.h>
+#include "ws2812.h"
  
 // Setleds for standard RGB 
 void inline ws2812_setleds(struct cRGB *ledarray, uint16_t leds)
 {
-   ws2812_setleds_pin(ledarray,leds, _BV(ws2812_pin));
+   ws2812_setleds_pin(ledarray,leds, _BV(WS2812_PIN));
 }
 
 void inline ws2812_setleds_pin(struct cRGB *ledarray, uint16_t leds, uint8_t pinmask)
@@ -30,13 +30,13 @@ void inline ws2812_setleds_pin(struct cRGB *ledarray, uint16_t leds, uint8_t pin
 // Setleds for SK6812RGBW
 void inline ws2812_setleds_rgbw(struct cRGBW *ledarray, uint16_t leds)
 {
-  ws2812_sendarray_mask((uint8_t*)ledarray,leds<<2,_BV(ws2812_pin));
+  ws2812_sendarray_mask((uint8_t*)ledarray,leds<<2,_BV(WS2812_PIN));
   _delay_us(80);
 }
 
 void ws2812_sendarray(uint8_t *data,uint16_t datlen)
 {
-  ws2812_sendarray_mask(data,datlen,_BV(ws2812_pin));
+  ws2812_sendarray_mask(data,datlen,_BV(WS2812_PIN));
 }
 
 /*

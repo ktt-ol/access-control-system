@@ -13,9 +13,23 @@
 
 //############################################################################*/
 
-#include <avr/io.h>
 #include <avr/interrupt.h>
-#include "usiTwiSlave.h"
+#include "i2c.h"
+
+//############################################################################*/
+
+enum i2c_state_state {
+	I2C_POS_ADDR  = 0,
+	I2C_POS_DATA0 = 1,
+	I2C_POS_DATA1 = 2,
+	I2C_POS_DATA2 = 3,
+	I2C_POS_DATA3 = 4
+};
+volatile uint8_t i2c_state = I2C_POS_ADDR;
+volatile struct i2c_data i2c_rxdata = {0,0,0,0};
+struct i2c_data i2c_txdata = {0,0,0,0};
+
+volatile uint8_t buffer_adr; // Virtual buffer address register
 
 //############################################################### device defines
 
@@ -219,8 +233,8 @@ typedef enum
 
 //############################################ initialize USI for TWI slave mode
 
-void usiTwiSlaveInit(  uint8_t ownAddress)
-{
+void i2c_init(uint8_t ownAddress) {
+  cli();
   slaveAddress = ownAddress;
 
   // In Two Wire mode (USIWM1, USIWM0 = 1X), the slave USI will pull SCL
@@ -238,6 +252,7 @@ void usiTwiSlaveInit(  uint8_t ownAddress)
        ( 1 << USICS1 ) | ( 0 << USICS0 ) | ( 0 << USICLK ) |       // Shift Register Clock Source = external, positive edge 4-Bit Counter Source = external, both edges
        ( 0 << USITC );       					// No toggle clock-port pin
   USISR = ( 1 << USI_START_COND_INT ) | ( 1 << USIOIF ) | ( 1 << USIPF ) | ( 1 << USIDC );  // clear all interrupt flags and reset overflow counter
+  sei();
 }
 
 //###################################################### USI Start Condition ISR
@@ -273,7 +288,7 @@ ISR( USI_START_VECTOR )
 		( 1 << USIWM1 ) | ( 0 << USIWM0 ) |			    // Set USI in Two-wire mode, no USI Counter overflow hold
 		( 1 << USICS1 ) | ( 0 << USICS0 ) | ( 0 << USICLK ) |		// 4-Bit Counter Source = external, both edges; Clock Source = external, positive edge
 		( 0 << USITC );									// No toggle clock-port pin
-		} 
+		}
 
 	USISR =
 	( 1 << USI_START_COND_INT ) | ( 1 << USIOIF ) |	// Clear interrupt flags - resetting the Start Condition Flag will release SCL
@@ -299,7 +314,7 @@ ISR( USI_OVERFLOW_VECTOR )	// Handles all the communication. Only disabled when 
 				else
 					{
 					overflowState = USI_SLAVE_REQUEST_DATA;		// Master Read Data Mode - Slave receive
-					buffer_adr=0xFF; // Buffer position undefined
+					i2c_state = I2C_POS_ADDR;
 					} // end if
 				SET_USI_TO_SEND_ACK();
 				}
@@ -323,13 +338,34 @@ ISR( USI_OVERFLOW_VECTOR )	// Handles all the communication. Only disabled when 
 	
 		// From here we just drop straight into USI_SLAVE_SEND_DATA if the master sent an ACK
 		case USI_SLAVE_SEND_DATA:
-			if (buffer_adr == 0xFF) 		// No buffer position given, set buffer address to 0
-				{
-				buffer_adr=0;
-				}	
-			USIDR = txbuffer[buffer_adr]; 	// Send data byte
-			
-			buffer_adr++; 					// Increment buffer address for next byte
+			switch (i2c_state) {
+			case I2C_POS_ADDR:
+				/* use 0 as default address if nothing was specified in a previous write */
+				buffer_adr = 0;
+				i2c_state = I2C_POS_DATA0;
+				/* fall-through */
+			case I2C_POS_DATA0:
+				/* get data from application */
+				i2c_send(buffer_adr, &i2c_txdata);
+				USIDR = i2c_txdata.data0;
+				break;
+			case I2C_POS_DATA1:
+				USIDR = i2c_txdata.data1;
+				break;
+			case I2C_POS_DATA2:
+				USIDR = i2c_txdata.data2;
+				break;
+			case I2C_POS_DATA3:
+				USIDR = i2c_txdata.data3;
+				break;
+			}
+
+			/* highlevel state machine */
+			i2c_state++;
+			if (i2c_state > I2C_POS_DATA3) {
+				buffer_adr++;
+				i2c_state = I2C_POS_DATA0;
+			}
 
 			overflowState = USI_SLAVE_REQUEST_REPLY_FROM_SEND_DATA;
 			SET_USI_TO_SEND_DATA( );
@@ -357,25 +393,44 @@ ISR( USI_OVERFLOW_VECTOR )	// Handles all the communication. Only disabled when 
 		// Copy data from USIDR and send ACK
 		// Next USI_SLAVE_REQUEST_DATA
 		case USI_SLAVE_GET_DATA_AND_SEND_ACK:
-			data=USIDR; 					// Read data received
-			if (buffer_adr == 0xFF) 		// First access, read buffer position
-				{
-				if(data<=buffer_size)		// Check if address within buffer size
-					{
-					buffer_adr= data; 		// Set position as received
-					}
-				else
-					{
-					buffer_adr=0; 			// Set address to 0
-					}				
-				}
-			else 							// Ongoing access, receive data
-				{
-				i2c_recv(buffer_adr, data);
-				buffer_adr++; 							// Increment buffer address for next write access
-				}
-				overflowState = USI_SLAVE_REQUEST_DATA;	// Next USI_SLAVE_REQUEST_DATA
-				SET_USI_TO_SEND_ACK( );
+			/* read received byte */
+			data = USIDR;
+
+			switch (i2c_state) {
+			case I2C_POS_ADDR:
+				buffer_adr = data;
+				break;
+			case I2C_POS_DATA0:
+				i2c_rxdata.data0 = data;
+				break;
+			case I2C_POS_DATA1:
+				i2c_rxdata.data1 = data;
+				break;
+			case I2C_POS_DATA2:
+				i2c_rxdata.data2 = data;
+				break;
+			case I2C_POS_DATA3:
+				i2c_rxdata.data3 = data;
+				break;
+			default:
+				/* this should not be reached! */
+				break;
+			}
+
+			/* full 32-bit word received, run callback */
+			if (i2c_state == I2C_POS_DATA3) {
+				i2c_recv(buffer_adr, i2c_rxdata);
+			}
+
+			/* highlevel state machine */
+			i2c_state++;
+			if (i2c_state > I2C_POS_DATA3) {
+				buffer_adr++;
+				i2c_state = I2C_POS_DATA0;
+			}
+
+			overflowState = USI_SLAVE_REQUEST_DATA;
+			SET_USI_TO_SEND_ACK();
 			break;
 
 
