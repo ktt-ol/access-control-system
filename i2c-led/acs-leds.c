@@ -22,18 +22,29 @@
 #include <poll.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <linux/i2c-dev.h>
+#include <arpa/inet.h>
+
 #include "../common/config.h"
 #include "../common/i2c.h"
 
-#define BLACK  0x000000
-#define YELLOW 0x404000
-#define ORANGE 0x802000
-#define GREEN  0x008000
-#define RED    0x800000
-#define RED2   0x400000
-#define PURPLE 0x300020
-#define BLUE   0x000080
-#define CYAN   0x004015
+#define BLACK  0x00000000
+#define YELLOW 0x40400000
+#define ORANGE 0x80200000
+#define GREEN  0x00800000
+#define RED    0x80000000
+#define RED2   0x40000000
+#define PURPLE 0x30002000
+#define BLUE   0x00008000
+#define CYAN   0x00401500
+
+#define MODE_SET   (0x00 << 6)
+#define MODE_FADE  (0x01 << 6)
+#define MODE_BLINK (0x02 << 6)
+#define MODE_GLOW  (0x03 << 6)
+
+#define TIME_MASK  0x3f
 
 #define BOLT_STATE "/access-control-system/main-door/bolt-state"
 #define TOPIC_STATE_CUR "/access-control-system/space-state"
@@ -84,10 +95,56 @@ static void on_subscribe(struct mosquitto *m, void *udata, int mid, int qos_coun
 	fprintf(stderr, "\n");
 }
 
-static void set_led(struct userdata *udata, int id, uint32_t color) {
-	i2c_write(udata->i2c, id*3+0x00, (color & 0xff0000) >> 16);
-	i2c_write(udata->i2c, id*3+0x01, (color & 0x00ff00) >> 8);
-	i2c_write(udata->i2c, id*3+0x02, (color & 0x0000ff) >> 0);
+static bool led_get(struct userdata *udata, uint8_t i, uint32_t *val) {
+	uint32_t readval;
+	int retries, err;
+	int fd = udata->i2c;
+
+	for(retries = 0; retries < 3; retries++) {
+		err = i2c_smbus_read_i2c_block_data(fd, i, 4, (uint8_t*) &readval);
+		if (err == -1)
+			continue;
+		*val = ntohl(readval);
+		return true;
+	}
+
+	return false;
+
+}
+
+static bool led_set(struct userdata *udata, uint8_t i, uint32_t val) {
+	uint32_t beval = htonl(val);
+	int retries, err;
+	int fd = udata->i2c;
+
+	for(retries = 0; retries < 5; retries++) {
+		err = i2c_smbus_write_i2c_block_data(fd, i, 4, (uint8_t*) &beval);
+		if (err == -1)
+			continue;
+		return true;
+	}
+
+	return false;
+}
+
+static bool led_check(struct userdata *udata, uint8_t i, uint32_t val) {
+	uint32_t beval = htonl(val);
+	uint32_t readval;
+	int retries, err;
+	int fd = udata->i2c;
+
+	for(retries = 0; retries < 5; retries++) {
+		err = i2c_smbus_read_i2c_block_data(fd, i, 4, (uint8_t*) &readval);
+		if (err == -1)
+			continue;
+		readval = ntohl(readval);
+		if ((val & 0xffffffff) == (readval & 0xffffffff))
+			return true;
+		led_set(udata, i, val);
+		usleep(1000);
+	}
+
+	return false;
 }
 
 enum location {
@@ -135,8 +192,14 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 			break;
 	}
 
+	led_set(udata, 0xff, 0xffffffff);
+
 	for(i=start; i < stop; i++)
-		set_led(udata, i, color);
+		led_set(udata, i, color);
+	for(i=start; i < stop; i++)
+		led_check(udata, i, color);
+
+	led_set(udata, 0xff, 0x00000000);
 }
 
 
@@ -186,6 +249,8 @@ static void display_state(struct userdata *udata, int curstate, int nextstate) {
 	/* closed + LOCKED -> dark red */
 	if (color == RED && udata->bolt)
 		color = RED2;
+
+	color |= (MODE_FADE | 63);
 
 	sed_multi_led(udata, LOCATION_ALL, color);
 }

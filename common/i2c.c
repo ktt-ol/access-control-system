@@ -5,6 +5,7 @@
 #include <linux/i2c-dev.h>
 #include <stdio.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 #include "i2c.h"
 
@@ -40,4 +41,16 @@ int i2c_write16(int file, uint8_t reg, uint16_t val) {
 
 int i2c_read16(int file, uint8_t reg) {
 	return i2c_smbus_read_word_data(file, reg);
+}
+
+int i2c_write32(int file, uint8_t reg, uint32_t data) {
+	data = htonl(data);
+	return i2c_smbus_write_i2c_block_data(file, reg, 4, (uint8_t*) &data);
+}
+
+uint32_t i2c_read32(int file, uint8_t reg) {
+	uint32_t data;
+	i2c_smbus_read_i2c_block_data(file, reg, 4, (uint8_t*) &data);
+	data = ntohl(data);
+	return data;
 }
