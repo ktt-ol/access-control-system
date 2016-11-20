@@ -115,7 +115,7 @@ void inline ws2812_sendarray_mask(uint8_t *data,uint16_t datlen,uint8_t maskhi)
   
 #if 1
   sreg_prev=SREG;
-  cli();
+  //cli();
 
   while (datlen--) {
     curbyte=*data++;
@@ -182,6 +182,6 @@ w_nop16
   }
   
   SREG=sreg_prev;
-  sei();
+  //sei();
 #endif
 }

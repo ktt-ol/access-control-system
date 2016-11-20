@@ -197,10 +197,10 @@ static void led_worker() {
 		}
 	}
 
-	cli();
-	if(!i2c_active())
-		ws2812_setleds(leds, LED_COUNT);
-	sei();
+	if(i2c_active())
+		return;
+
+	ws2812_setleds(leds, LED_COUNT);
 }
 
 static void timer_init() {
