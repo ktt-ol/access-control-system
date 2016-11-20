@@ -205,10 +205,10 @@ static void led_worker() {
 
 static void timer_init() {
 	cli();
-	TCCR0A = (1 << WGM01);				/* CTC mode */
-	TCCR0B = (0x5 << CS00);				/* div1024  */
-	OCR0A = F_CPU/1024 * 0.03125 - 1;	/* ca. 32Hz */
-	TIMSK |= (1<<OCIE0A);				/* enable IRQ */
+	TCCR1 |= 0x80; /* ctc mode */
+	TCCR1 |= 0xb; /* div1024 */
+	OCR1C = F_CPU/1024 * 0.03125 - 1;	/* ca. 32Hz */
+	TIMSK |= (1<<OCIE1A);				/* enable IRQ */
 	sei();
 
 	/* 32Hz = 31.25ms = 250000 instructions */
@@ -217,7 +217,7 @@ static void timer_init() {
 	/* so we have > 30ms to calculate LED colors */
 }
 
-ISR(TIMER0_COMPA_vect) {
+ISR(TIMER1_COMPA_vect) {
 	update = true;
 }
 
