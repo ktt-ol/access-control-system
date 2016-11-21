@@ -3,7 +3,7 @@ LDFLAGS+=${LIBS}
 
 all: acs-gpio-sensor
 
-acs-gpio-sensor: acs-gpio-sensor.o ../common/config.o ../common/gpio.o
+acs-gpio-sensor: acs-gpio-sensor.o ../common/config.o
 
 install-systemd: acs-gpio-sensor.service
 	cp acs-gpio-sensor.service $(DESTDIR)/lib/systemd/system

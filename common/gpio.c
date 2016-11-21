@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "gpio.h"
+#define CONFIG_SYSFS_GPIO
 #include "config.h"
 
 #define MAX_BUF 64

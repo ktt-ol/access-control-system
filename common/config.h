@@ -38,6 +38,7 @@
 
 /* ----- gpios ----- */
 
+#ifdef CONFIG_SYSFS_GPIO
 struct gpio_desc {
 	char *name;
 	int gpio;
@@ -60,6 +61,7 @@ static struct gpio_desc __maybe_unused gpios[] = {
 	{ "abus-cfa1000-button-setup", 10, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
 	{ "abus-cfa1000-irq", 9, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
 };
+#endif
 
 /* ----- config file interface ----- */
 
