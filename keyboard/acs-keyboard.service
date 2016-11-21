@@ -1,0 +1,15 @@
+[Unit]
+Description=Access Control System Keyboard Service
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/sbin/acs-keyboard
+WorkingDirectory=/tmp
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
