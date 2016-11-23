@@ -80,6 +80,10 @@ static void on_log(struct mosquitto *m, void *udata, int level, const char *str)
 	fprintf(stdout, "[%d] %s\n", level, str);
 }
 
+static void on_publish(struct mosquitto *m, void *udata, int m_id) {
+	fprintf(stderr, "Message published.\n");
+}
+
 static void on_reed_message(struct mosquitto *m, void *data, const struct mosquitto_message *msg) {
 	struct userdata *udata = (struct userdata*) data;
 	bool state;
@@ -179,6 +183,7 @@ int main(int argc, char **argv) {
 	/* setup callbacks */
 	mosquitto_connect_callback_set(mosq, on_connect);
 	mosquitto_disconnect_callback_set(mosq, on_disconnect);
+	mosquitto_publish_callback_set(mosq, on_publish);
 	mosquitto_subscribe_callback_set(mosq, on_subscribe);
 	mosquitto_log_callback_set(mosq, on_log);
 	mosquitto_message_callback_set(mosq, on_message);
