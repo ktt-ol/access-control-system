@@ -3,7 +3,7 @@ LDFLAGS+=${LIBS}
 
 all: acs-glass-door
 
-acs-glass-door: acs-glass-door.o ../common/config.o ../common/gpio.o
+acs-glass-door: acs-glass-door.o ../common/config.o
 
 install-systemd: acs-glass-door.service
 	cp acs-glass-door.service $(DESTDIR)/lib/systemd/system
