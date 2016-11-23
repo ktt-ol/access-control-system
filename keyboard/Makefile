@@ -1,6 +1,8 @@
+LDFLAGS += -lmosquitto
+
 all: acs-keyboard
 
-acs-keyboard: acs-keyboard.o gpio.o
+acs-keyboard: acs-keyboard.o ../common/config.o
 
 install-systemd: acs-keyboard.service
 	cp acs-keyboard.service $(DESTDIR)/lib/systemd/system

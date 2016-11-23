@@ -25,8 +25,9 @@
 
 #include <linux/input.h>
 #include <sys/ioctl.h>
+#include <mosquitto.h>
 
-#include "gpio.h"
+#include "../common/config.h"
 
 #define KEY_RELEASE 0
 #define KEY_PRESS 1
@@ -34,16 +35,18 @@
 
 #define BUFFER_SIZE 32
 
-struct gpiodesc main_door_buzzer = {"platform/3f200000.gpio", 24, "maindoor buzzer", true, true, -1, -1};
+#define TOPIC_BUZZER "/access-control-system/main-door/buzzer"
+
+struct mosquitto *m;
 
 void input(char *code) {
-	if (strcmp(code, "00000000")) {
+	if (strcmp(code, "4891")) {
 		printf("incorrect code: %s\n", code);
 		return;
 	}
 
 	printf("correct code, open main door!\n");
-	gpio_write(&main_door_buzzer, true);
+	mosquitto_publish(m, NULL, TOPIC_BUZZER, 2, "1", 0, true);
 	alarm(3);
 
 	return;
@@ -51,8 +54,87 @@ void input(char *code) {
 
 void on_alarm(int signal) {
 	printf("timeout, close main door!\n");
-	gpio_write(&main_door_buzzer, false);
+	mosquitto_publish(m, NULL, TOPIC_BUZZER, 2, "0", 0, true);
 }
+
+static void on_connect(struct mosquitto *m, void *udata, int res) {
+	fprintf(stderr, "Connected.\n");
+}
+
+static void on_publish(struct mosquitto *m, void *udata, int m_id) {
+	fprintf(stderr, "Message published.\n");
+}
+
+static void on_log(struct mosquitto *m, void *udata, int level, const char *str) {
+	fprintf(stdout, "[%d] %s\n", level, str);
+}
+
+struct mosquitto* mqtt_init() {
+	struct mosquitto *mosq;
+	int ret;
+
+	mosquitto_lib_init();
+
+	FILE *cfg = cfg_open();
+	char *user = cfg_get_default(cfg, "mqtt-username", MQTT_USERNAME);
+	char *pass = cfg_get_default(cfg, "mqtt-password", MQTT_PASSWORD);
+	char *cert = cfg_get_default(cfg, "mqtt-broker-cert", MQTT_BROKER_CERT);
+	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
+	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
+	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
+	cfg_close(cfg);
+
+	/* create mosquitto client instance */
+	mosq = mosquitto_new("acs-keyboard", true, NULL);
+	if(!mosq) {
+		fprintf(stderr, "Error: Out of memory.\n");
+		return NULL;
+	}
+
+	/* setup callbacks */
+	mosquitto_connect_callback_set(mosq, on_connect);
+	mosquitto_publish_callback_set(mosq, on_publish);
+	mosquitto_log_callback_set(mosq, on_log);
+
+	/* setup credentials */
+	if (strcmp(user, "")) {
+		ret = mosquitto_username_pw_set(mosq, user, pass);
+		if(ret) {
+			fprintf(stderr, "Error setting credentials: %d\n", ret);
+			return NULL;
+		}
+	}
+
+	if (strcmp(cert, "")) {
+		ret = mosquitto_tls_set(mosq, cert, NULL, NULL, NULL, NULL);
+		if(ret) {
+			fprintf(stderr, "Error setting TLS mode: %d\n", ret);
+			return NULL;
+		}
+
+		ret = mosquitto_tls_opts_set(mosq, 1, "tlsv1.2", NULL);
+		if(ret) {
+			fprintf(stderr, "Error requiring TLS 1.2: %d\n", ret);
+			return NULL;
+		}
+	}
+
+	/* connect to broker */
+	ret = mosquitto_connect(mosq, host, port, keepalv);
+	if (ret) {
+		fprintf(stderr, "Error could not connect to broker: %d\n", ret);
+		return NULL;
+	}
+
+	ret = mosquitto_loop_start(mosq);
+	if (ret) {
+		fprintf(stderr, "Error could not start mosquitto network loop: %d\n", ret);
+		return NULL;
+	}
+
+	return mosq;
+}
+
 
 int main (int argc, char *argv[]) {
 	int i, fd, pos, err;
@@ -64,11 +146,10 @@ int main (int argc, char *argv[]) {
 		return 1;
 	}
 
-	err = gpio_init(&main_door_buzzer);
-	if (err) {
-		fprintf(stderr, "Couldn't open maindoor buzzer gpio: %d\n", err);
+	mosquitto_lib_init();
+	m = mqtt_init();
+	if (!m)
 		return 1;
-	}
 
 	signal(SIGALRM, on_alarm);
 
