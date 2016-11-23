@@ -3,7 +3,7 @@ LDFLAGS+=${LIBS}
 
 all: acs-switch
 
-acs-switch: acs-switch.o ../common/config.o ../common/gpio.o
+acs-switch: acs-switch.o ../common/config.o ../keyboard/gpio.o
 
 install-systemd: acs-switch.service
 	cp acs-switch.service $(DESTDIR)/lib/systemd/system

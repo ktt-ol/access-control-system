@@ -1,7 +1,7 @@
 /*
  * Space Status Switch
  *
- * Copyright (c) 2015, Sebastian Reichel <sre@mainframe.io>
+ * Copyright (c) 2015-2016, Sebastian Reichel <sre@mainframe.io>
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -22,8 +22,10 @@
 #include <mosquitto.h>
 #include <poll.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <linux/gpio.h>
+#include "../keyboard/gpio.h"
 #include "../common/config.h"
-#include "../common/gpio.h"
 
 #define TOPIC_CURRENT_STATE "/access-control-system/space-state"
 #define TOPIC_NEXT_STATE "/access-control-system/space-state-next"
@@ -33,6 +35,12 @@
 #define TOPIC_MESSAGE "/access-control-system/message"
 
 #define GPIO_TIMEOUT 60 * 1000
+
+struct gpiodesc gpios[] = {
+	{ "platform/3f200000.gpio", 27, "status switch top", false, false, -1, -1 },
+	{ "platform/3f200000.gpio", 22, "status switch bottom", false, false, -1, -1 },
+	{}
+};
 
 const static char* states[] = {
 	"switch up (opened)",
@@ -57,10 +65,6 @@ static void on_log(struct mosquitto *m, void *udata, int level, const char *str)
 	fprintf(stdout, "[%d] %s\n", level, str);
 }
 
-static const unsigned char gpios_merge(bool gpio1, bool gpio2) {
-	return (gpio1 << 1 | gpio2);
-}
-
 static const char* gpios_decode(unsigned char gpios) {
 	switch(gpios) {
 		case 0x00:
@@ -76,7 +80,8 @@ static const char* gpios_decode(unsigned char gpios) {
 
 int main(int argc, char **argv) {
 	struct mosquitto *mosq;
-	int ret = 0;
+	struct gpioevent_data event;
+	int ret = 0, i;
 	unsigned char old_gpios = 0xFF;
 
 	mosquitto_lib_init();
@@ -132,17 +137,12 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	/* read switch state */
-	int switch_top = gpio_get("status-switch-top");
-	if(switch_top == -1) {
-		fprintf(stderr, "could not open gpio\n");
-		return 1;
-	}
-
-	int switch_bottom = gpio_get("status-switch-bottom");
-	if(switch_bottom == -1) {
-		fprintf(stderr, "could not open gpio\n");
-		return 1;
+	for (i = 0; gpios[i].dev; i++) {
+		int err = gpio_init(&gpios[i]);
+		if (err) {
+			fprintf(stderr, "could not init gpio \"%s\": %d!\n", gpios[i].name, err);
+			return 1;
+		}
 	}
 
 	ret = mosquitto_loop_start(mosq);
@@ -151,31 +151,48 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
+	struct pollfd fdset[2];
+	int nfds = 2;
+
+	fdset[0].fd = gpios[0].evfd;
+	fdset[0].events = POLLIN;
+	fdset[1].fd = gpios[1].evfd;
+	fdset[1].events = POLLIN;
+
 	for (;;) {
-		struct pollfd fdset[2];
-		int nfds = 2;
-
-		fdset[0].fd = switch_top;
-		fdset[0].events = POLLPRI;
-		fdset[1].fd = switch_bottom;
-		fdset[1].events = POLLPRI;
-
 		ret = poll(fdset, nfds, GPIO_TIMEOUT);
 		if(ret < 0) {
 				fprintf(stderr, "Failed to poll gpios: %d\n", ret);
 				return 1;
 		}
 
-		unsigned char gpios = gpios_merge(gpio_read(switch_top), gpio_read(switch_bottom));
+		uint8_t gpioval;
+		for (i = 0; i < nfds; i++) {
+			bool state;
 
-		if(gpios != old_gpios) {
-			old_gpios = gpios;
-			fprintf(stderr, "new state: %s\n", gpios_decode(gpios));
+			if ((fdset[i].revents & POLLIN) == 0)
+				continue;
+
+			ret = read(gpios[i].evfd, &event, sizeof(event));
+			if (ret < 0) {
+				fprintf(stderr, "read failed: %d\n", errno);
+				return 1;
+			}
+
+			if (event.id == GPIOEVENT_EVENT_RISING_EDGE)
+				gpioval |= (1 << i);
+			else
+				gpioval &= ~(1 << i);
+		}
+
+		if(gpioval != old_gpios) {
+			old_gpios = gpioval;
+			fprintf(stderr, "new state: %s\n", gpios_decode(gpioval));
 
 			char *state_cur;
 			char *state_next;
 
-			switch(gpios) {
+			switch(gpioval) {
 				case GPIOS_OPENED:
 					state_cur = "open";
 					state_next = "";
@@ -221,7 +238,7 @@ int main(int argc, char **argv) {
 			}
 
 		} else {
-			fprintf(stdout, "gpios: 0x%02x\n", gpios);
+			fprintf(stdout, "gpios: 0x%02x\n", gpioval);
 		}
 	}
 
