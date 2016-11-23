@@ -143,8 +143,8 @@ struct mqttgpio {
 struct mqttgpio gpios[] = {
 	{"/access-control-system/main-door/bell-button", { "i2c/1-0021", 3, "maindoor bell button", false, false, -1, -1 }, -1},
 	{"/access-control-system/glass-door/bell-button", { "i2c/1-0022", 7, "glassdoor bell button", false, true, -1, -1 }, -1},
-	{"/access-control-system/glass-door/bolt-contact", { "platform/3f200000.gpio", 4, "glassdoor bolt sw", false, true, -1, -1 }, -1},
-	{"/access-control-system/main-door/reed-switch", { "platform/3f200000.gpio", 25, "maindoor reed sw", false, false, -1, -1 }, -1},
+	{"/access-control-system/glass-door/bolt-contact", { "i2c/1-0022", 5, "glassdoor bolt sw", false, true, -1, -1 }, -1},
+	{"/access-control-system/main-door/reed-switch", { "i2c/1-0021", 2, "maindoor reed sw", false, false, -1, -1 }, -1},
 	{}
 };
 
