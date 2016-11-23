@@ -37,8 +37,8 @@
 #define GPIO_TIMEOUT 60 * 1000
 
 struct gpiodesc gpios[] = {
-	{ "platform/3f200000.gpio", 27, "status switch top", false, false, -1, -1 },
 	{ "platform/3f200000.gpio", 22, "status switch bottom", false, false, -1, -1 },
+	{ "platform/3f200000.gpio", 27, "status switch top", false, false, -1, -1 },
 	{}
 };
 
