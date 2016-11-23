@@ -24,16 +24,14 @@
 #include <stdlib.h>
 #include <signal.h>
 #include "../common/config.h"
-#include "../common/gpio.h"
 
-#define BELL_TOPIC "/access-control-system/main-door/bell-button"
-#define REED_TOPIC "/access-control-system/main-door/reed-switch"
+#define TOPIC_BELL_BUTTON "/access-control-system/main-door/bell-button"
+#define TOPIC_REED_SWITCH "/access-control-system/main-door/reed-switch"
+#define TOPIC_BELL "/access-control-system/bell"
 
 struct userdata {
 	struct mosquitto *mosq;
 	bool eventinprogress;
-	int buzzer;
-	int bell;
 	bool cached_reed_state;
 };
 
@@ -46,15 +44,15 @@ static void on_connect(struct mosquitto *m, void *udata, int res) {
 
 	fprintf(stderr, "Connected.\n");
 
-	ret = mosquitto_subscribe(m, NULL, REED_TOPIC, 1);
+	ret = mosquitto_subscribe(m, NULL, TOPIC_REED_SWITCH, 1);
 	if (ret) {
-		fprintf(stderr, "MQTT Error: Could not subscribe to %s: %d\n", REED_TOPIC, ret);
+		fprintf(stderr, "MQTT Error: Could not subscribe to %s: %d\n", TOPIC_REED_SWITCH, ret);
 		exit(1);
 	}
 
-	ret = mosquitto_subscribe(m, NULL, BELL_TOPIC, 1);
+	ret = mosquitto_subscribe(m, NULL, TOPIC_BELL_BUTTON, 1);
 	if (ret) {
-		fprintf(stderr, "MQTT Error: Could not subscribe to %s: %d\n", BELL_TOPIC, ret);
+		fprintf(stderr, "MQTT Error: Could not subscribe to %s: %d\n", TOPIC_BELL_BUTTON, ret);
 		exit(1);
 	}
 }
@@ -87,7 +85,7 @@ static void on_reed_message(struct mosquitto *m, void *data, const struct mosqui
 	bool state;
 
 	/* wrong */
-	if(strcmp(REED_TOPIC, msg->topic)) {
+	if(strcmp(TOPIC_REED_SWITCH, msg->topic)) {
 		fprintf(stderr, "Ignored message with wrong topic\n");
 		return;
 	}
@@ -105,7 +103,6 @@ static void on_reed_message(struct mosquitto *m, void *data, const struct mosqui
 
 static void on_button_message(struct mosquitto *m, void *data, const struct mosquitto_message *msg) {
 	struct userdata *udata = (struct userdata*) data;
-	bool new_gpio_state;
 
 	if(strncmp("1", msg->payload, msg->payloadlen)) {
 		fprintf(stderr, "Bell button no longer pressed!\n");
@@ -127,19 +124,19 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 	udata->eventinprogress = true;
 
 	/* ring the bell */
-	gpio_write(udata->bell, true);
+	mosquitto_publish(m, NULL, TOPIC_BELL, 2, "1", 0, true);
 	alarm(1);
 }
 
 static void on_message(struct mosquitto *m, void *data, const struct mosquitto_message *msg) {
 	/* status change */
-	if(!strcmp(REED_TOPIC, msg->topic)) {
+	if(!strcmp(TOPIC_REED_SWITCH, msg->topic)) {
 		on_reed_message(m, data, msg);
 		return;
 	}
 
 	/* bell event */
-	if(!strcmp(BELL_TOPIC, msg->topic)) {
+	if(!strcmp(TOPIC_BELL_BUTTON, msg->topic)) {
 		on_button_message(m, data, msg);
 		return;
 	}
@@ -150,7 +147,7 @@ static void on_message(struct mosquitto *m, void *data, const struct mosquitto_m
 
 void on_alarm(int signal) {
 	/* disable bell */
-	gpio_write(globaludata->bell, false);
+	mosquitto_publish(globaludata->mosq, NULL, TOPIC_BELL, 2, "0", 0, true);
 	globaludata->eventinprogress = false;
 }
 
@@ -158,8 +155,6 @@ int main(int argc, char **argv) {
 	struct mosquitto *mosq;
 	struct userdata udata;
 	int ret = 0;
-	bool cur_gpio = false;
-	bool old_gpio = false;
 	char *state;
 
 	mosquitto_lib_init();
@@ -179,6 +174,7 @@ int main(int argc, char **argv) {
 		fprintf(stderr, "Error: Out of memory.\n");
 		return 1;
 	}
+	udata.mosq = mosq;
 
 	/* setup callbacks */
 	mosquitto_connect_callback_set(mosq, on_connect);
@@ -219,21 +215,6 @@ int main(int argc, char **argv) {
 
 	/* init udata */
 	udata.eventinprogress = false;
-
-	/* open gpios */
-	udata.buzzer = gpio_get("main-door-buzzer");
-	if(udata.buzzer == -1) {
-		fprintf(stderr, "could not open buzzer gpio\n");
-		return 1;
-	}
-	gpio_write(udata.buzzer, false);
-
-	udata.bell = gpio_get("bell");
-	if(udata.bell == -1) {
-		fprintf(stderr, "could not open bell gpio\n");
-		return 1;
-	}
-	gpio_write(udata.bell, false);
 
 	globaludata = &udata;
 	signal(SIGALRM, on_alarm);

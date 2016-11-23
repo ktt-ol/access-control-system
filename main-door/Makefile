@@ -3,7 +3,7 @@ LDFLAGS+=${LIBS}
 
 all: acs-main-door
 
-acs-main-door: acs-main-door.o ../common/config.o ../common/gpio.o
+acs-main-door: acs-main-door.o ../common/config.o
 
 install-systemd: acs-main-door.service
 	cp acs-main-door.service $(DESTDIR)/lib/systemd/system
