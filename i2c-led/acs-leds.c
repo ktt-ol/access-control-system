@@ -26,6 +26,7 @@
 #include <linux/i2c-dev.h>
 #include <arpa/inet.h>
 
+#include "../keyboard/gpio.h"
 #include "../common/config.h"
 #include "../common/i2c.h"
 
@@ -59,6 +60,10 @@ const static char* states[] = {
 	"open",
 	"open+",
 };
+
+struct gpiodesc modegpio = { "i2c/1-0022", 3, "tiny-ws2812 mode", true, false, -1, -1 }; /* high = i2c, low = led */
+
+// P1.3 = mode pin
 
 /* order should match states[] */
 enum states2 {
@@ -192,14 +197,14 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 			break;
 	}
 
-	led_set(udata, 0xff, 0xffffffff);
+	gpio_write(&modegpio, 1);
 
 	for(i=start; i < stop; i++)
 		led_set(udata, i, color);
 	for(i=start; i < stop; i++)
 		led_check(udata, i, color);
 
-	led_set(udata, 0xff, 0x00000000);
+	gpio_write(&modegpio, 0);
 }
 
 
@@ -365,6 +370,11 @@ int main(int argc, char **argv) {
 	if (udata->i2c < 0) {
 		fprintf(stderr, "Could not open I2C: %d\n", udata->i2c);
 		return 1;
+	}
+
+	ret = gpio_init(&modegpio);
+	if (ret) {
+		fprintf(stderr, "Could not open mode gpio: %d\n", ret);
 	}
 
 	/* initial state unknown */

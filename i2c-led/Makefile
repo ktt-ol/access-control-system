@@ -3,7 +3,7 @@ LDFLAGS+=${LIBS}
 
 all: acs-leds
 
-acs-leds: acs-leds.o ../common/i2c.o ../common/config.o
+acs-leds: acs-leds.o ../common/i2c.o ../keyboard/gpio.o ../common/config.o
 
 led-test: led-test.o
 
