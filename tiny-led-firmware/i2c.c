@@ -233,10 +233,8 @@ typedef enum
 
 //############################################ initialize USI for TWI slave mode
 
-void i2c_init(uint8_t ownAddress) {
+void i2c_enable() {
   cli();
-  slaveAddress = ownAddress;
-
   // In Two Wire mode (USIWM1, USIWM0 = 1X), the slave USI will pull SCL
   // low when a start condition is detected or a counter overflow (only
   // for USIWM1, USIWM0 = 11).  This inserts a wait state. SCL is released
@@ -253,6 +251,18 @@ void i2c_init(uint8_t ownAddress) {
        ( 0 << USITC );       					// No toggle clock-port pin
   USISR = ( 1 << USI_START_COND_INT ) | ( 1 << USIOIF ) | ( 1 << USIPF ) | ( 1 << USIDC );  // clear all interrupt flags and reset overflow counter
   sei();
+}
+
+void i2c_disable() {
+	cli();
+	USICR = 0x00; /* disable USI */
+	DDR_USI &= ~( 1 << PORT_USI_SCL ) | ( 1 << PORT_USI_SDA ); /* set SCL and SDA as input */
+	sei();
+}
+
+void i2c_init(uint8_t ownAddress) {
+	slaveAddress = ownAddress;
+	i2c_enable();
 }
 
 //###################################################### USI Start Condition ISR

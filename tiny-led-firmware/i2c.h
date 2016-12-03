@@ -13,6 +13,8 @@ struct i2c_data {
 };
 
 void i2c_init(uint8_t own_address);
+void i2c_enable();
+void i2c_disable();
 void i2c_recv(uint8_t reg, struct i2c_data  val);
 void i2c_send(uint8_t reg, struct i2c_data *val);
 

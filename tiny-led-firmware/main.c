@@ -8,8 +8,7 @@ struct LEDcmd { uint8_t g; uint8_t r; uint8_t b; uint8_t c; uint8_t h;};
 
 static struct cRGB leds[LED_COUNT];
 static struct LEDcmd cmds[LED_COUNT];
-volatile static bool update = false;
-volatile static bool stopped = false;
+volatile static uint8_t update = 2;
 
 #define LED_CMD_MASK	0xc0
 #define LED_CMD_SHIFT	6
@@ -23,14 +22,6 @@ volatile static bool stopped = false;
 static void led_worker();
 
 void i2c_recv(uint8_t reg, struct i2c_data val) {
-	if (reg == 0xff){
-		if (val.data0 || val.data1 || val.data2 || val.data3)
-			stopped = true;
-		else
-			stopped = false;
-		return;
-	}
-
 	if (reg >= LED_COUNT)
 		return;
 
@@ -42,15 +33,6 @@ void i2c_recv(uint8_t reg, struct i2c_data val) {
 }
 
 void i2c_send(uint8_t reg, struct i2c_data *val) {
-	if (reg == 0xff){
-		uint8_t result = stopped ? 0xff : 0x00;
-		val->data0 = result;
-		val->data1 = result;
-		val->data2 = result;
-		val->data3 = result;
-		return;
-	}
-
 	if (reg >= LED_COUNT)
 		return;
 
@@ -197,9 +179,6 @@ static void led_worker() {
 		}
 	}
 
-	if(i2c_active())
-		return;
-
 	ws2812_setleds(leds, LED_COUNT);
 }
 
@@ -217,20 +196,57 @@ static void timer_init() {
 	/* so we have > 30ms to calculate LED colors */
 }
 
+static void timer_disable() {
+		TIMSK &= ~(1<<OCIE1A);
+}
+
 ISR(TIMER1_COMPA_vect) {
-	update = true;
+	update = 1;
+}
+
+static void check_modepin() {
+    static bool state = true;
+	bool newstate = (PINB & (1 << PB3));
+
+	if (state == newstate)
+		return;
+	state = newstate;
+
+	if (PINB & (1 << PB3)) {
+		timer_disable();
+		i2c_enable();
+
+		update = 2;
+	} else {
+		timer_init();
+		i2c_disable();
+
+		update = 1;
+	}
+}
+
+static void mode_init() {
+	DDRB |= 1 << PB3;  /* input mode */
+	PORTB |= 1 << PB3; /* pull-up */
 }
 
 void main(void)
 {
 	leds_init();
 	i2c_init(I2C_ADDR);
-	timer_init();
+	timer_disable();
 
 	while(1) {
-		if (update && !stopped) {
-			led_worker();
-			update = false;
+
+		switch (update) {
+			case 0:
+				break;
+			case 1:
+				led_worker();
+				update = 0;
+			default:
+				check_modepin();
+				break;
 		}
 	}
 }

@@ -1,3 +1,13 @@
+=== Mode ===
+
+The device is either in LED or in I2C mode. The mode
+is selected via PB3. If PB3 is low, the device is
+in LED mode and updates the ws2812b LEDs with an 32
+Hz interval. If PB3 is high, the device is in I2C
+mode and listens to its device address. Due to HW
+limitations the device does not listen to its i2c
+address while its in the LED mode.
+
 === I2C Commands ===
 
 send:    [DEV-ADDR] [LED-ADDR] [R] [G] [B] [C]
