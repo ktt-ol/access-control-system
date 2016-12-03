@@ -177,23 +177,23 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 			break;
 		case LOCATION_INDOOR:
 			start=1;
-			stop=2;
+			stop=4;
 			break;
 		case LOCATION_KEYPAD:
-			start=2;
-			stop=7;
+			start=4;
+			stop=9;
 			break;
 		case LOCATION_BELL_BUTTON_2:
-			start=7;
-			stop=8;
+			start=9;
+			stop=10;
 			break;
 		case LOCATION_STRIPE:
-			start=8;
-			stop=32;
+			start=10;
+			stop=34;
 			break;
 		case LOCATION_ALL:
 			start=0;
-			stop=32;
+			stop=34;
 			break;
 	}
 
