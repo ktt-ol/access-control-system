@@ -198,6 +198,7 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 	}
 
 	gpio_write(&modegpio, 1);
+	usleep(1000);
 
 	for(i=start; i < stop; i++)
 		led_set(udata, i, color);
