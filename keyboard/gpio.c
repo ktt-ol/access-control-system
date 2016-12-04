@@ -128,14 +128,14 @@ int gpio_init(struct gpiodesc *gpio) {
 		return -errno;
 
 
-	if (!gpio->output) {
-		struct gpioevent_request req;
+	if (gpio->direction == GPIO_INPUT) {
+		struct gpioevent_request req = {0};
 
 		req.lineoffset = gpio->offset;
 		strncpy(req.consumer_label, gpio->name, 31);
 
 		req.handleflags = GPIOHANDLE_REQUEST_INPUT;
-		if (gpio->active_low)
+		if (gpio->flags & GPIO_ACTIVE_LOW)
 			req.handleflags |= GPIOHANDLE_REQUEST_ACTIVE_LOW;
 
 		req.eventflags = GPIOEVENT_REQUEST_BOTH_EDGES;
@@ -148,15 +148,20 @@ int gpio_init(struct gpiodesc *gpio) {
 
 		gpio->evfd = req.fd;
 	} else {
-		struct gpiohandle_request req;
+		struct gpiohandle_request req = {0};
 
 		req.lines = 1;
 		req.lineoffsets[0] = gpio->offset;
 		strncpy(req.consumer_label, gpio->name, 31);
 
 		req.flags = GPIOHANDLE_REQUEST_OUTPUT;
-		if (gpio->active_low)
+		if (gpio->flags & GPIO_ACTIVE_LOW)
 			req.flags |= GPIOHANDLE_REQUEST_ACTIVE_LOW;
+
+		if (gpio->flags & GPIO_DEFAULT_SET)
+			req.default_values[0] = 1;
+		else
+			req.default_values[0] = 0;
 
 		int err = ioctl(gpio->fd, GPIO_GET_LINEHANDLE_IOCTL, &req);
 		if (err < 0) {
