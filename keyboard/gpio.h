@@ -29,5 +29,6 @@ struct gpiodesc {
 
 int gpio_init(struct gpiodesc *gpio);
 int gpio_write(struct gpiodesc *gpio, bool value);
+void gpio_close(struct gpiodesc *gpio);
 
 #endif

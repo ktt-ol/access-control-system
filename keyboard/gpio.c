@@ -180,3 +180,13 @@ int gpio_write(struct gpiodesc *gpio, bool value) {
 	data.values[0] = value;
 	return ioctl(gpio->evfd, GPIOHANDLE_SET_LINE_VALUES_IOCTL, &data);
 }
+
+void gpio_close(struct gpiodesc *gpio) {
+	if(!gpio)
+		return;
+
+	close(gpio->evfd);
+	close(gpio->fd);
+	gpio->evfd = -1;
+	gpio->fd = -1;
+}
