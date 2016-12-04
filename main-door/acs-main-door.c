@@ -27,12 +27,44 @@
 
 #define TOPIC_BELL_BUTTON "/access-control-system/main-door/bell-button"
 #define TOPIC_REED_SWITCH "/access-control-system/main-door/reed-switch"
+#define TOPIC_BUZZER "/access-control-system/main-door/buzzer"
 #define TOPIC_BELL "/access-control-system/bell"
+#define TOPIC_STATE "/access-control-system/space-state"
+
+const static char* states[] = {
+	"unknown",
+	"disconnected",
+	"none",
+	"keyholder",
+	"member",
+	"open",
+	"open+",
+};
+
+/* order should match states[] */
+enum states2 {
+	STATE_UNKNOWN,
+	STATE_DISCONNECTED,
+	STATE_NONE,
+	STATE_KEYHOLDER,
+	STATE_MEMBER,
+	STATE_OPEN,
+	STATE_OPEN_PLUS,
+	STATE_MAX,
+};
+
+enum event {
+	EVENT_NONE,
+	EVENT_BELL,
+	EVENT_BUZZER,
+	EVENT_MAX,
+};
 
 struct userdata {
 	struct mosquitto *mosq;
-	bool eventinprogress;
+	enum event eventinprogress;
 	bool cached_reed_state;
+	enum states2 state;
 };
 
 #define GPIO_TIMEOUT 60 * 1000
@@ -53,6 +85,12 @@ static void on_connect(struct mosquitto *m, void *udata, int res) {
 	ret = mosquitto_subscribe(m, NULL, TOPIC_BELL_BUTTON, 1);
 	if (ret) {
 		fprintf(stderr, "MQTT Error: Could not subscribe to %s: %d\n", TOPIC_BELL_BUTTON, ret);
+		exit(1);
+	}
+
+	ret = mosquitto_subscribe(m, NULL, TOPIC_STATE, 1);
+	if (ret) {
+		fprintf(stderr, "MQTT Error: Could not subscribe to %s: %d\n", TOPIC_STATE, ret);
 		exit(1);
 	}
 }
@@ -120,16 +158,51 @@ static void on_button_message(struct mosquitto *m, void *data, const struct mosq
 		return;
 	}
 
-	if(udata->eventinprogress) {
+	if(udata->eventinprogress != EVENT_NONE) {
 		fprintf(stderr, "button pressed event skipped (already in progress)!\n");
 		return;
 	}
 
-	udata->eventinprogress = true;
+	if (udata->state == STATE_OPEN_PLUS) {
+		/* trigger buzzer */
+		udata->eventinprogress = EVENT_BUZZER;
+		mosquitto_publish(m, NULL, TOPIC_BUZZER, 2, "1", 0, true);
+		alarm(3);
+	} else {
+		/* ring the bell */
+		udata->eventinprogress = EVENT_BELL;
+		mosquitto_publish(m, NULL, TOPIC_BELL, 2, "1", 0, true);
+		alarm(1);
+	}
+}
 
-	/* ring the bell */
-	mosquitto_publish(m, NULL, TOPIC_BELL, 2, "1", 0, true);
-	alarm(1);
+static void on_state_message(struct mosquitto *m, void *data, const struct mosquitto_message *msg) {
+	int i;
+	enum states2 curstate = STATE_UNKNOWN;
+	struct userdata *udata = (struct userdata*) data;
+
+	/* wrong */
+	if(strcmp(TOPIC_STATE, msg->topic)) {
+		fprintf(stderr, "Ignored message with wrong topic\n");
+		return;
+	}
+
+	for(i=0; i < STATE_MAX; i++) {
+		if(!strncmp(states[i], msg->payload, msg->payloadlen)) {
+			curstate = i;
+			break;
+		}
+	}
+
+	if(curstate == STATE_UNKNOWN) {
+		char *m = strndup(msg->payload, msg->payloadlen);
+		fprintf(stderr, "Incorrect state received: %s\n", m);
+		free(m);
+	}
+
+	fprintf(stderr, "MQTT state change: %s\n", states[curstate]);
+
+	udata->state = curstate;
 }
 
 static void on_message(struct mosquitto *m, void *data, const struct mosquitto_message *msg) {
@@ -145,14 +218,28 @@ static void on_message(struct mosquitto *m, void *data, const struct mosquitto_m
 		return;
 	}
 
+	/* state event */
+	if(!strcmp(TOPIC_STATE, msg->topic)) {
+		on_state_message(m, data, msg);
+		return;
+	}
+
+
 	fprintf(stderr, "Ignored message with wrong topic\n");
 	return;
 }
 
 void on_alarm(int signal) {
-	/* disable bell */
-	mosquitto_publish(globaludata->mosq, NULL, TOPIC_BELL, 2, "0", 0, true);
-	globaludata->eventinprogress = false;
+	switch (globaludata->eventinprogress) {
+		case EVENT_BELL:
+			mosquitto_publish(globaludata->mosq, NULL, TOPIC_BELL, 2, "0", 0, true);
+			break;
+		case EVENT_BUZZER:
+			mosquitto_publish(globaludata->mosq, NULL, TOPIC_BUZZER, 2, "0", 0, true);
+			break;
+	}
+
+	globaludata->eventinprogress = EVENT_NONE;
 }
 
 int main(int argc, char **argv) {
