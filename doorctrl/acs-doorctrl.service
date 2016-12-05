@@ -1,0 +1,16 @@
+[Unit]
+Description=Lock/Unlock door based on state
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/sbin/acs-doorctrl
+WorkingDirectory=/tmp
+User=root
+Group=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
