@@ -360,7 +360,7 @@ static char* key2fp(const char *key_base64) {
 	size_t key_base64_len = strlen(key_base64);
 	unsigned char *key_raw = (unsigned char *) malloc(key_base64_len);
 	size_t key_raw_len = 0;
-	EVP_MD_CTX mdctx;
+	EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
 	unsigned char md_value[EVP_MAX_MD_SIZE];
 	unsigned int md_len;
 	int err;
@@ -370,18 +370,18 @@ static char* key2fp(const char *key_base64) {
 	for(int i=key_base64_len-1; key_base64[i] == '='; i--)
 		key_raw_len--;
 
-	EVP_MD_CTX_init(&mdctx);
-	EVP_DigestInit_ex(&mdctx, EVP_md5(), NULL);
+	EVP_MD_CTX_init(mdctx);
+	EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
 
-	err = EVP_DigestUpdate(&mdctx, key_raw, key_raw_len);
+	err = EVP_DigestUpdate(mdctx, key_raw, key_raw_len);
 	if (err != 1)
 		return NULL;
 
-	err = EVP_DigestFinal_ex(&mdctx, md_value, &md_len);
+	err = EVP_DigestFinal_ex(mdctx, md_value, &md_len);
 	if (err != 1)
 		return NULL;
 	
-	EVP_MD_CTX_cleanup(&mdctx);
+	EVP_MD_CTX_destroy(mdctx);
 
 	result = malloc(16*3);
 	if (!result)
