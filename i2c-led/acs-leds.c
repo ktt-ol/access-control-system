@@ -750,7 +750,6 @@ int main(int argc, char **argv) {
 		ret = poll(fdset, 1, POLL_TIMEOUT);
 		if (ret < 0) {
 				fprintf(stderr, "Failed to poll local state file: %d\n", ret);
-				sleep(10);
 				continue;
 		}
 
@@ -759,7 +758,6 @@ int main(int argc, char **argv) {
 
 		if (fdset[0].revents & POLLIN)
 			handle_inotify(ifd);
-
 	}
 
 	free(statedir);
