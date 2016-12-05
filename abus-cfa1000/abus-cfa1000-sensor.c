@@ -3,13 +3,17 @@
 #include <unistd.h>
 #include <string.h>
 #include <mosquitto.h>
-#include "../common/config.h"
+#include <linux/gpio.h>
+#include <errno.h>
 #include "../common/i2c.h"
-#include "../common/gpio.h"
+#include "../keyboard/gpio.h"
+#include "../common/config.h"
 #include "interface.h"
 
 int dev;
-int irq;
+
+struct gpiodesc irq = { "platform/3f200000.gpio",  9, "cfa1000 irq",    GPIO_INPUT,  GPIO_ACTIVE_LOW, -1, -1 };
+bool irqstate = 0;
 
 #define TOPIC "/access-control-system/main-door/bolt-state"
 
@@ -80,9 +84,9 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	irq = gpio_get("abus-cfa1000-irq");
-	if (irq < 0) {
-		fprintf(stderr, "Could not open IRQ GPIO: %d\n", irq);
+	ret = gpio_init(&irq);
+	if (ret) {
+		fprintf(stderr, "Could not init IRQ GPIO: %d\n", ret);
 		return 1;
 	}
 
@@ -145,12 +149,11 @@ int main(int argc, char **argv) {
 	i2c_write16(dev, MCP23017_IOCON_A, 0x7070);
 
 	struct pollfd fdset;
-	fdset.fd = irq;
-	fdset.events = POLLPRI;
+	fdset.fd = irq.evfd;
+	fdset.events = POLLIN;
 
 	struct display_data_t olddisp = { .symbol = '\0', .state = LOCK_STATE_UNKNOWN };
 	for (;;) {
-		char irqstate = gpio_read(irq);
 		struct display_data_t disp = display_read(dev);
 		char *state = lock_state_str(disp.state);
 
@@ -167,11 +170,26 @@ int main(int argc, char **argv) {
 				fprintf(stderr, "Failed to poll gpio: %d\n", ret);
 				return 1;
 		}
+
+		/* gpio change */
+		if ((fdset.revents & POLLIN) != 0) {
+			struct gpioevent_data event;
+
+			ret = read(irq.evfd, &event, sizeof(event));
+			if (ret < 0) {
+				fprintf(stderr, "read failed: %d\n", errno);
+				return 1;
+			}
+
+			if (event.id == GPIOEVENT_EVENT_RISING_EDGE)
+				irqstate = 1;
+			else
+				irqstate = 0;
+		}
 	}
 
 	i2c_close(dev);
-	close(irq);
-
+	gpio_close(&irq);
 
 	return 0;
 }
