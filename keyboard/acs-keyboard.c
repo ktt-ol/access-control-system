@@ -41,11 +41,11 @@ struct mosquitto *m;
 
 void input(char *code) {
 	if (strcmp(code, "4891")) {
-		printf("incorrect code: %s\n", code);
+		fprintf(stderr, "incorrect code: %s\n", code);
 		return;
 	}
 
-	printf("correct code, open main door!\n");
+	fprintf(stderr, "correct code, open main door!\n");
 	mosquitto_publish(m, NULL, TOPIC_BUZZER, 2, "1", 0, true);
 	alarm(3);
 
@@ -53,7 +53,7 @@ void input(char *code) {
 }
 
 void on_alarm(int signal) {
-	printf("timeout, close main door!\n");
+	fprintf(stderr, "timeout, close main door!\n");
 	mosquitto_publish(m, NULL, TOPIC_BUZZER, 2, "0", 0, true);
 }
 
