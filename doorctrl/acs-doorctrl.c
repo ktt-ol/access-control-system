@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	state.wd = inotify_add_watch(state.fd, statedir, IN_MODIFY);
+	state.wd = inotify_add_watch(state.fd, statedir, IN_MODIFY | IN_DELETE);
 
 	for(;;) {
 		int len = read(state.fd, buffer, EVENT_BUF_LEN);
