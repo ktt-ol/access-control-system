@@ -167,11 +167,16 @@ static unsigned char acs_cmp(struct acs_state *a, struct acs_state *b) {
 }
 
 static void acs_free(struct acs_state *s) {
-	free(s->keyholder_id);
-	free(s->keyholder_name);
-	free(s->status);
-	free(s->status_next);
-	free(s->message);
+	if (s->keyholder_id)
+		free(s->keyholder_id);
+	if (s->keyholder_name)
+		free(s->keyholder_name);
+	if (s->status)
+		free(s->status);
+	if (s->status_next)
+		free(s->status_next);
+	if (s->message)
+		free(s->message);
 }
 
 static void handle_inotify(int fd) {
@@ -312,51 +317,51 @@ int main(int argc, char **argv) {
 		ret = acsf_read(&acsf, &newacss);
 		if (ret < 0) {
 				fprintf(stderr, "failed to read state: %d\n", ret);
-				return 1;
-		} 
- 
-		if(acs_cmp(&acss, &newacss)) {
-			acs_free(&acss);
-			acss = newacss;
+				acs_free(&newacss);
+		} else { 
+			if(acs_cmp(&acss, &newacss)) {
+				acs_free(&acss);
+				acss = newacss;
 
-			printf("Publish new state:\n");
-			printf("  keyholder:   %s (%s)\n", newacss.keyholder_name, newacss.keyholder_id);
-			printf("  status:      %s\n", newacss.status);
-			printf("  status-next: %s\n", newacss.status_next[0] == '\0' ? "--- unset ---" : newacss.status_next);
-			printf("  message:     %s\n", newacss.message[0] == '\0' ? "--- unset ---" : newacss.message);
+				printf("Publish new state:\n");
+				printf("  keyholder:   %s (%s)\n", newacss.keyholder_name, newacss.keyholder_id);
+				printf("  status:      %s\n", newacss.status);
+				printf("  status-next: %s\n", newacss.status_next[0] == '\0' ? "--- unset ---" : newacss.status_next);
+				printf("  message:     %s\n", newacss.message[0] == '\0' ? "--- unset ---" : newacss.message);
 
-			/* publish state */
-			ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_ID, strlen(acss.keyholder_id), acss.keyholder_id, 0, true);
-			if (ret) {
-				fprintf(stderr, "Error could not send message: %d\n", ret);
-				return 1;
+				/* publish state */
+				ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_ID, strlen(acss.keyholder_id), acss.keyholder_id, 0, true);
+				if (ret) {
+					fprintf(stderr, "Error could not send message: %d\n", ret);
+					return 1;
+				}
+
+				ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_NAME, strlen(acss.keyholder_name), acss.keyholder_name, 0, true);
+				if (ret) {
+					fprintf(stderr, "Error could not send message: %d\n", ret);
+					return 1;
+				}
+
+				ret = mosquitto_publish(mosq, NULL, TOPIC_STATE_CUR, strlen(acss.status), acss.status, 0, true);
+				if (ret) {
+					fprintf(stderr, "Error could not send message: %d\n", ret);
+					return 1;
+				}
+
+				ret = mosquitto_publish(mosq, NULL, TOPIC_STATE_NEXT, strlen(acss.status_next), acss.status_next, 0, true);
+				if (ret) {
+					fprintf(stderr, "Error could not send message: %d\n", ret);
+					return 1;
+				}
+
+				ret = mosquitto_publish(mosq, NULL, TOPIC_MESSAGE, strlen(acss.message), acss.message, 0, true);
+				if (ret) {
+					fprintf(stderr, "Error could not send message: %d\n", ret);
+					return 1;
+				}
+			} else {
+				acs_free(&newacss);
 			}
-
-			ret = mosquitto_publish(mosq, NULL, TOPIC_KEYHOLDER_NAME, strlen(acss.keyholder_name), acss.keyholder_name, 0, true);
-			if (ret) {
-				fprintf(stderr, "Error could not send message: %d\n", ret);
-				return 1;
-			}
-
-			ret = mosquitto_publish(mosq, NULL, TOPIC_STATE_CUR, strlen(acss.status), acss.status, 0, true);
-			if (ret) {
-				fprintf(stderr, "Error could not send message: %d\n", ret);
-				return 1;
-			}
-
-			ret = mosquitto_publish(mosq, NULL, TOPIC_STATE_NEXT, strlen(acss.status_next), acss.status_next, 0, true);
-			if (ret) {
-				fprintf(stderr, "Error could not send message: %d\n", ret);
-				return 1;
-			}
-
-			ret = mosquitto_publish(mosq, NULL, TOPIC_MESSAGE, strlen(acss.message), acss.message, 0, true);
-			if (ret) {
-				fprintf(stderr, "Error could not send message: %d\n", ret);
-				return 1;
-			}
-		} else {
-			acs_free(&newacss);
 		}
 
 		ret = poll(fdset, 1, POLL_TIMEOUT);
