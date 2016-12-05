@@ -146,10 +146,27 @@ static int acsf_read(struct acs_files *acsf, struct acs_state *acss) {
 	return 0;
 }
 
+static bool acs_validate(struct acs_state *a) {
+	if (!a)
+		return false;
+	if (!a->keyholder_id)
+		return false;
+	if (!a->keyholder_name)
+		return false;
+	if (!a->status)
+		return false;
+	if (!a->status_next)
+		return false;
+	if (!a->message)
+		return false;
+
+	return true;
+}
+
 static unsigned char acs_cmp(struct acs_state *a, struct acs_state *b) {
-	if (!a && !b)
+	if (!acs_validate(a) && !acs_validate(b))
 		return 0;
-	if (!a || !b)
+	if (!acs_validate(a) || !acs_validate(b))
 		return 1;
 
 	if (strcmp(a->keyholder_id, b->keyholder_id))
@@ -167,16 +184,26 @@ static unsigned char acs_cmp(struct acs_state *a, struct acs_state *b) {
 }
 
 static void acs_free(struct acs_state *s) {
-	if (s->keyholder_id)
+	if (s->keyholder_id) {
 		free(s->keyholder_id);
-	if (s->keyholder_name)
+		s->keyholder_id = NULL;
+	}
+	if (s->keyholder_name) {
 		free(s->keyholder_name);
-	if (s->status)
+		s->keyholder_name = NULL;
+	}
+	if (s->status) {
 		free(s->status);
-	if (s->status_next)
+		s->status = NULL;
+	}
+	if (s->status_next) {
 		free(s->status_next);
-	if (s->message)
+		s->status_next = NULL;
+	}
+	if (s->message) {
 		free(s->message);
+		s->message = NULL;
+	}
 }
 
 static void handle_inotify(int fd) {
@@ -297,7 +324,7 @@ int main(int argc, char **argv) {
 		return 1;
 
 	printf("Watched state-directory: %s\n", statedir);
-	wfd = inotify_add_watch(ifd, statedir, IN_MODIFY);
+	wfd = inotify_add_watch(ifd, statedir, IN_MODIFY | IN_DELETE);
 	if (wfd == -1)
 		return 1;
 
@@ -318,6 +345,9 @@ int main(int argc, char **argv) {
 		if (ret < 0) {
 				fprintf(stderr, "failed to read state: %d\n", ret);
 				acs_free(&newacss);
+
+				/* invalidate cached information */
+				acs_free(&acss);
 		} else { 
 			if(acs_cmp(&acss, &newacss)) {
 				acs_free(&acss);
@@ -360,13 +390,14 @@ int main(int argc, char **argv) {
 					return 1;
 				}
 			} else {
+				printf("Not publishing unchanged state!\n");
 				acs_free(&newacss);
 			}
 		}
 
 		ret = poll(fdset, 1, POLL_TIMEOUT);
 		if (ret < 0) {
-				fprintf(stderr, "Failed to poll gpios: %d\n", ret);
+				fprintf(stderr, "Failed to poll: %d\n", ret);
 				return 1;
 		}
 
