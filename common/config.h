@@ -18,6 +18,9 @@
 #define DATABASE "/var/lib/acs.db"
 #define STATEDIR "/run/acs-state/"
 
+#define MQTT_BROKER_EXTERNAL_HOST "mainframe.io"
+#define MQTT_BROKER_EXTERNAL_PORT 8883
+#define MQTT_BROKER_EXTERNAL_CERT "mainframe.io-mqtt.crt"
 
 #define MQTT_BROKER_HOST "spacegate.mainframe.lan"
 #define MQTT_BROKER_PORT 8883
