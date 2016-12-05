@@ -654,12 +654,15 @@ static bool write_file(const char *dir, const char *filename, const char *data) 
 	snprintf(path, pathlen, "%s/%s", dir, filename);
 
 	f = fopen(path, "w");
-	if (!f)
+	if (!f) {
+		free(path);
 		return false;
+	}
 	
 	written = fwrite(data, 1, len, f);
 	fwrite("\n", 1, 1, f);
 	fclose(f);
+	free(path);
 
 	if (written < len) {
 		return false;
