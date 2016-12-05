@@ -7,8 +7,6 @@
 #define __maybe_unused
 #endif
 
-#include "gpio.h"
-
 #define CONFIGFILE "/etc/access-control-system.conf"
 
 /* ----- defaults for variables from configfile ----- */
@@ -38,33 +36,6 @@
 
 #define NETWORK_DEV "eth0"
 #define SERIAL_DISPLAY_DEV "/dev/ttyUSB0"
-
-/* ----- gpios ----- */
-
-#ifdef CONFIG_SYSFS_GPIO
-struct gpio_desc {
-	char *name;
-	int gpio;
-	bool active_low;
-	enum gpio_direction direction;
-};
-
-static struct gpio_desc __maybe_unused gpios[] = {
-	{ "status-switch-top", 27, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
-	{ "status-switch-bottom", 22, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
-	{ "glass-door-bolt-switch", 4, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
-	{ "glass-door-bell-button", 17, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
-	{ "glass-door-buzzer", 18, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
-	{ "main-door-bell-button", 23, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
-	{ "main-door-buzzer", 24, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
-	{ "main-door-reed-switch", 25, ACTIVE_HIGH, GPIO_DIRECTION_INPUT },
-	{ "bell", 15, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
-	{ "abus-cfa1000-button-lock", 11, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
-	{ "abus-cfa1000-button-unlock", 8, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
-	{ "abus-cfa1000-button-setup", 10, ACTIVE_LOW, GPIO_DIRECTION_OUTPUT },
-	{ "abus-cfa1000-irq", 9, ACTIVE_LOW, GPIO_DIRECTION_INPUT },
-};
-#endif
 
 /* ----- config file interface ----- */
 
