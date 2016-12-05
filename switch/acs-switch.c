@@ -78,6 +78,18 @@ static const char* gpios_decode(unsigned char gpios) {
 	}
 }
 
+static bool remove_file(const char *dir, const char *filename) {
+	size_t pathlen = strlen(dir)+strlen(filename)+2;
+	char *path = malloc(pathlen);
+	snprintf(path, pathlen, "%s/%s", dir, filename);
+
+	bool result = !unlink(path);
+
+	free(path);
+
+	return result;
+}
+
 int main(int argc, char **argv) {
 	struct mosquitto *mosq;
 	struct gpioevent_data event;
@@ -93,6 +105,7 @@ int main(int argc, char **argv) {
 	char *host = cfg_get_default(cfg, "mqtt-broker-host", MQTT_BROKER_HOST);
 	int port = cfg_get_int_default(cfg, "mqtt-broker-port", MQTT_BROKER_PORT);
 	int keepalv = cfg_get_int_default(cfg, "mqtt-keepalive", MQTT_KEEPALIVE_SECONDS);
+	char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
 	cfg_close(cfg);
 
 	/* create mosquitto client instance */
@@ -209,6 +222,13 @@ int main(int argc, char **argv) {
 					break;
 			}
 
+			/* reset authenticated information */
+			remove_file(statedir, "keyholder-id");
+			remove_file(statedir, "keyholder-name");
+			remove_file(statedir, "status");
+			remove_file(statedir, "status-next");
+			remove_file(statedir, "message");
+
 			/* publish state */
 			ret = mosquitto_publish(mosq, NULL, TOPIC_CURRENT_STATE, strlen(state_cur), state_cur, 0, true);
 			if (ret) {
@@ -246,6 +266,7 @@ int main(int argc, char **argv) {
 	free(pass);
 	free(cert);
 	free(host);
+	free(statedir);
 
 	/* cleanup */
 	mosquitto_destroy(mosq);
