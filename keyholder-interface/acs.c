@@ -459,7 +459,7 @@ static char *keycomment2username(const char *comment) {
 	return strndup(comment, split-comment);
 }
 
-unsigned int str2mode(char *mode) {
+unsigned int str2mode(const char *mode) {
 	for(unsigned int i=0; i < ARRAYSIZE(modes); i++) {
 		if(!strcmp(mode, modes[i]))
 			return i;
@@ -468,14 +468,31 @@ unsigned int str2mode(char *mode) {
 	return 0;
 }
 
-static bool parse_argument(char *command, unsigned int *mode, char **msg) {
-	char *arg, *tmp;
+enum cmds {
+	CMD_INVALID,
+	CMD_STATUS,
+	CMD_NEXT_STATUS,
+	CMD_MAX
+};
 
-	if (strncmp(command, "set-status ", strlen("set-status "))) {
-		fprintf(stderr, "Currently only 'set-status' command is supported!\n");
+static bool parse_argument(char *command, int *mode, int *next_mode, char **msg) {
+	char *arg, *tmp;
+	int tmpmode;
+
+	enum cmds cmd = CMD_INVALID;
+
+	if (!strncmp(command, "set-status ", strlen("set-status "))) {
+		cmd = CMD_STATUS;
+		command += strlen("set-status ");
+	} else if (!strncmp(command, "set-next-status ", strlen("set-next-status "))) {
+		cmd = CMD_NEXT_STATUS;
+		command += strlen("set-next-status ");
+	} else {
+		fprintf(stderr, "Supported commands:\n");
+		fprintf(stderr, " set-status <status> [msg]\n");
+		fprintf(stderr, " set-next-status <status> [msg]\n");
 		return false;
 	}
-	command += strlen("set-status ");
 
 	tmp = strchr(command, ' ');
 	if (tmp)
@@ -484,8 +501,8 @@ static bool parse_argument(char *command, unsigned int *mode, char **msg) {
 		arg = strdup(command);
 
 	/* supplied mode does not exist */
-	*mode = str2mode(arg);
-	if (*mode <= 0 || *mode >= ARRAYSIZE(modes)) {
+	tmpmode = str2mode(arg);
+	if (tmpmode <= 0 || tmpmode >= ARRAYSIZE(modes)) {
 		fprintf(stderr, "Invalid Mode: %s\n", arg);
 		fprintf(stderr, "Possible modes:\n");
 		fprintf(stderr, "\tnone      - space is closed, nobody must be inside\n");
@@ -493,10 +510,18 @@ static bool parse_argument(char *command, unsigned int *mode, char **msg) {
 		fprintf(stderr, "\tmember    - space is open, but only for members\n");
 		fprintf(stderr, "\topen      - space is open, guests may ring the bell\n");
 		fprintf(stderr, "\topen+     - space is open, everyone can open the door\n");
+		free(arg);
 		return false;
 	}
-
 	free(arg);
+
+	if (cmd == CMD_STATUS) {
+		*mode = tmpmode;
+		*next_mode = -1;
+	} else if(cmd ==CMD_NEXT_STATUS) {
+		*mode = -1;
+		*next_mode = tmpmode;
+	}
 
 	/* optional message */
 	*msg = strdup(tmp ? (tmp + 1) : "");
@@ -649,7 +674,8 @@ int main(int argc, char **argv) {
 	int keyuid;
 	char *ip, *keytype, *keyfp, *keydata, *keycomment, *keyuser;
 	sqlite3 *db = NULL;
-	unsigned int mode;
+	int mode;
+	int next_mode;
 	char *msg = NULL;
 	char *keyuidstr = NULL;
 
@@ -660,7 +686,7 @@ int main(int argc, char **argv) {
 		goto error;
 	}
 
-	if (!parse_argument(argv[2], &mode, &msg))
+	if (!parse_argument(argv[2], &mode, &next_mode, &msg))
 		goto error;
 
 	if (!db_init(&db))
@@ -708,15 +734,22 @@ int main(int argc, char **argv) {
 	write_file(statedir, "keyholder-id", keyuidstr);
 	free(keyuidstr);
 	write_file(statedir, "keyholder-name", keyuser);
-	write_file(statedir, "status", modes[mode]);
-	write_file(statedir, "status-next", "");
+	if (mode >= 0)
+		write_file(statedir, "status", modes[mode]);
+	if (next_mode == -1)
+		write_file(statedir, "status-next", "");
+	else
+		write_file(statedir, "status-next", modes[next_mode]);
 	write_file(statedir, "message", msg);
 	free(statedir);
 
 	//printf("SSH Key %s accepted!\n\n", keyfp);
-	printf("Keyholder: %s (%d)\n", keyuser, keyuid);
-	printf("Status:    %s (%d)\n", modes[mode], mode);
-	printf("Message:   %s\n", msg);
+	printf("Keyholder:   %s (%d)\n", keyuser, keyuid);
+	if (mode >= 0)
+		printf("Status:      %s (%d)\n", modes[mode], mode);
+	if (next_mode >= 0)
+		printf("Next-Status: %s (%d)\n", modes[next_mode], next_mode);
+	printf("Message:     %s\n", msg);
 
 	sqlite3_close(db);
 	cfg_close(cfg);
