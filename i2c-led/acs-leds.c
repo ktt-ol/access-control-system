@@ -720,7 +720,7 @@ int main(int argc, char **argv) {
 		return 1;
 
 	printf("Watched state-directory: %s\n", statedir);
-	wfd = inotify_add_watch(ifd, statedir, IN_MODIFY);
+	wfd = inotify_add_watch(ifd, statedir, IN_MODIFY | IN_DELETE);
 	if (wfd == -1)
 		return 1;
 
@@ -743,6 +743,8 @@ int main(int argc, char **argv) {
 			next_status = str2state(next_status_str, strlen(next_status_str));
 			free(next_status_str);
 		}
+
+		fprintf(stderr, "state file: %d %d\n", status, next_status);
 
 		set_state(udata, LOCAL, status, next_status);
 		display_state(udata);
