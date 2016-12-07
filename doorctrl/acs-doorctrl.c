@@ -26,17 +26,27 @@ struct gpiodesc gpios[] = {
 #define GPIO_LOCK 1
 #define GPIO_UNLOCK 0
 
+enum doorstate {
+	DOOR_UNKNOWN,
+	DOOR_LOCKED,
+	DOOR_UNLOCKED
+};
+
 static struct state_t {
 	int keyholder_id;
 	char *keyholder_name;
 	enum state status;
 	char *message;
+	enum doorstate doorstate;
 
 	int fd;
 	int wd;
 } state;
 
 void lock() {
+	if (state.doorstate == DOOR_LOCKED)
+		return;
+
 	printf("lock!\n");
 	gpio_write(&gpios[GPIO_LOCK], true);
 	usleep(500000);
@@ -44,6 +54,9 @@ void lock() {
 }
 
 void unlock() {
+	if (state.doorstate == DOOR_UNLOCKED)
+		return;
+
 	printf("unlock!\n");
 	gpio_write(&gpios[GPIO_UNLOCK], true);
 	usleep(500000);
@@ -87,6 +100,8 @@ int main(int argc, char **argv) {
 
 	state.wd = inotify_add_watch(state.fd, statedir, IN_MODIFY | IN_DELETE);
 
+	state.doorstate = DOOR_UNKNOWN;
+
 	for(;;) {
 		int len = read(state.fd, buffer, EVENT_BUF_LEN);
 		sleep(1);
@@ -102,15 +117,18 @@ int main(int argc, char **argv) {
 		switch(state.status) {
 			case STATE_NONE:
 				lock();
+				state.doorstate = DOOR_LOCKED;
 				break;
 			case STATE_KEYHOLDER:
 			case STATE_MEMBER:
 			case STATE_OPEN:
 			case STATE_OPEN_PLUS:
 				unlock();
+				state.doorstate = DOOR_UNLOCKED;
 				break;
 			case STATE_UNKNOWN:
 			default:
+				state.doorstate = DOOR_UNKNOWN;
 				break;
 		}
 
