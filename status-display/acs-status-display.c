@@ -53,6 +53,13 @@ struct userdata {
 const static char clear_display_cmd[] = {0xfe, 0x01};
 #define clear_display(fd) write(fd, clear_display_cmd, sizeof(clear_display_cmd));
 
+const static char display_backlight_enable_cmd[] = {0x7c, 157};
+#define display_backlight_enable(fd) write(fd, display_backlight_enable_cmd, sizeof(display_backlight_enable_cmd));
+
+const static char display_backlight_disable_cmd[] = {0x7c, 128};
+#define display_backlight_disable(fd) write(fd, display_backlight_disable_cmd, sizeof(display_backlight_disable_cmd));
+
+
 static int serial_setup(int fd, int speed) {
 	struct termios tty;
 	memset(&tty, 0, sizeof(tty));
@@ -280,6 +287,7 @@ int main(int argc, char **argv) {
 
 	serial_setup(fd, B9600);
 	clear_display(fd);
+	display_backlight_enable(fd);
 
 	fprintf(stderr, "Display initialized!\n");
 
