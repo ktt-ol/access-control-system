@@ -469,31 +469,47 @@ unsigned int str2mode(const char *mode) {
 	return 0;
 }
 
-enum cmds {
-	CMD_INVALID,
-	CMD_STATUS,
-	CMD_NEXT_STATUS,
+enum cmd {
+	CMD_INVALID = 0,
+	CMD_SET_STATUS,
+	CMD_SET_NEXT_STATUS,
+	CMD_OPEN_DOOR,
 	CMD_MAX
 };
 
-static bool parse_argument(char *command, int *mode, int *next_mode, char **msg) {
-	char *arg, *tmp;
-	int tmpmode;
+static const char* cmd_str[] = {
+	"invalid",
+	"set-status",
+	"set-next-status",
+	"open-door",
+};
 
-	enum cmds cmd = CMD_INVALID;
+static enum cmd get_command(char **command) {
+	int i;
+	enum cmd result = CMD_INVALID;
 
-	if (!strncmp(command, "set-status ", strlen("set-status "))) {
-		cmd = CMD_STATUS;
-		command += strlen("set-status ");
-	} else if (!strncmp(command, "set-next-status ", strlen("set-next-status "))) {
-		cmd = CMD_NEXT_STATUS;
-		command += strlen("set-next-status ");
-	} else {
-		fprintf(stderr, "Supported commands:\n");
-		fprintf(stderr, " set-status <status> [msg]\n");
-		fprintf(stderr, " set-next-status <status> [msg]\n");
-		return false;
+	if (*command == NULL)
+		return CMD_INVALID;
+	
+	for (i=0; i < CMD_MAX; i++) {
+		if (!strncmp(*command, cmd_str[i], strlen(cmd_str[i]))) {
+			result = i;
+			*command += strlen(cmd_str[i]);
+			break;
+		}
 	}
+
+	if (**command == ' ')
+		(*command)++;
+	else if(**command != '\0') {
+		result = CMD_INVALID;
+	}
+
+	return result;
+}
+
+static bool parse_status_cmd(char *command, int *mode, char **msg) {
+	char *arg, *tmp;
 
 	tmp = strchr(command, ' ');
 	if (tmp)
@@ -502,8 +518,8 @@ static bool parse_argument(char *command, int *mode, int *next_mode, char **msg)
 		arg = strdup(command);
 
 	/* supplied mode does not exist */
-	tmpmode = str2mode(arg);
-	if (tmpmode <= 0 || tmpmode >= ARRAYSIZE(modes)) {
+	*mode = str2mode(arg);
+	if (*mode <= 0 || *mode >= ARRAYSIZE(modes)) {
 		fprintf(stderr, "Invalid Mode: %s\n", arg);
 		fprintf(stderr, "Possible modes:\n");
 		fprintf(stderr, "\tnone      - space is closed, nobody must be inside\n");
@@ -516,16 +532,45 @@ static bool parse_argument(char *command, int *mode, int *next_mode, char **msg)
 	}
 	free(arg);
 
-	if (cmd == CMD_STATUS) {
-		*mode = tmpmode;
-		*next_mode = -1;
-	} else if(cmd ==CMD_NEXT_STATUS) {
-		*mode = -1;
-		*next_mode = tmpmode;
-	}
-
 	/* optional message */
 	*msg = strdup(tmp ? (tmp + 1) : "");
+
+	return true;
+}
+
+enum door {
+	DOOR_INVALID = 0,
+	DOOR_MAIN,
+	DOOR_GLASS,
+	DOOR_MAX
+};
+
+static const char* doors[] = {
+	"invalid",
+	"main",
+	"glass"
+};
+
+enum door str2door(const char *door) {
+	for(unsigned int i=0; i < ARRAYSIZE(doors); i++) {
+		if(!strcmp(door, doors[i]))
+			return i;
+	}
+
+	return DOOR_INVALID;
+}
+
+
+static bool parse_open_door_cmd(char *command, enum door *door) {
+	*door = str2door(command);
+
+	if (*door == DOOR_INVALID) {
+		fprintf(stderr, "invalid door: %s\n", command);
+		fprintf(stderr, "Possible door values:\n");
+		fprintf(stderr, "\tmain  - main door to space\n");
+		fprintf(stderr, "\tglass - glass door to corridor\n");
+		return false;
+	}
 
 	return true;
 }
@@ -678,10 +723,10 @@ int main(int argc, char **argv) {
 	int keyuid;
 	char *ip, *keytype, *keyfp, *keydata, *keycomment, *keyuser;
 	sqlite3 *db = NULL;
-	int mode;
-	int next_mode;
+	int mode = -1, next_mode = -1;
 	char *msg = NULL;
 	char *keyuidstr = NULL;
+	enum door door;
 
 	cfg = cfg_open();
 
@@ -690,8 +735,32 @@ int main(int argc, char **argv) {
 		goto error;
 	}
 
-	if (!parse_argument(argv[2], &mode, &next_mode, &msg))
-		goto error;
+	char *command = argv[2];
+	enum cmd cmd = get_command(&command);
+
+	sd_journal_print(LOG_DEBUG, "keyholder-interface: cmd=%s arguments=%s", cmd_str[cmd], command);
+
+	switch (cmd) {
+		case CMD_SET_STATUS:
+			if (!parse_status_cmd(command, &mode, &msg))
+				goto error;
+			break;
+		case CMD_SET_NEXT_STATUS:
+			if (!parse_status_cmd(command, &next_mode, &msg))
+				goto error;
+			break;
+		case CMD_OPEN_DOOR:
+			if (!parse_open_door_cmd(command, &door))
+				goto error;
+			break;
+		case CMD_INVALID:
+		default:
+			fprintf(stderr, "Supported commands:\n");
+			fprintf(stderr, " set-status <status> [msg]\n");
+			fprintf(stderr, " set-next-status <status> [msg]\n");
+			fprintf(stderr, " open-door <door>\n");
+			goto error;
+	}
 
 	if (!db_init(&db))
 		goto error;
@@ -719,44 +788,50 @@ int main(int argc, char **argv) {
 		goto error;
 	}
 
-	if (!db_insert_log(db, logintime, keyuid, ip, keyfp, mode, msg)) {
-		fprintf(stderr, "DB: Could not insert into log table!\n");
-		goto error;
-	}
+	sd_journal_print(LOG_NOTICE, "keyholder-interface: Identified user %s (%d) with key %s", keyuser, keyuid, keyfp);
 
-	char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
-	/* current status is available from simple files */
-	if (mkdir(statedir, mode) && errno != EEXIST) {
-		fprintf(stderr, "Could not create statedir '%s'!\n", statedir);
-		goto error;
-	}
+	if (cmd == CMD_SET_STATUS || cmd == CMD_SET_NEXT_STATUS) {
+		if (!db_insert_log(db, logintime, keyuid, ip, keyfp, mode, msg)) {
+			fprintf(stderr, "DB: Could not insert into log table!\n");
+			goto error;
+		}
 
-	if (asprintf(&keyuidstr, "%d", keyuid) < 0) {
-		fprintf(stderr, "asprintf failed!\n");
-		goto error;
-	}
-	write_file(statedir, "keyholder-id", keyuidstr);
-	free(keyuidstr);
-	write_file(statedir, "keyholder-name", keyuser);
-	if (mode >= 0)
-		write_file(statedir, "status", modes[mode]);
-	if (next_mode == -1)
-		write_file(statedir, "status-next", "");
-	else
-		write_file(statedir, "status-next", modes[next_mode]);
-	write_file(statedir, "message", msg);
-	free(statedir);
+		char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
+		/* current status is available from simple files */
+		if (mkdir(statedir, mode) && errno != EEXIST) {
+			fprintf(stderr, "Could not create statedir '%s'!\n", statedir);
+			goto error;
+		}
 
-	sd_journal_print(LOG_NOTICE, "SSH Key %s accepted by keyholder-interface!", keyfp);
-	printf("Keyholder:   %s (%d)\n", keyuser, keyuid);
-	if (mode >= 0) {
-		sd_journal_print(LOG_NOTICE, "Keyholder %s (%d) set status %s", keyuser, keyuid, modes[mode]);
-		printf("Status:      %s (%d)\n", modes[mode], mode);
-	} if (next_mode >= 0) {
-		printf("Next-Status: %s (%d)\n", modes[next_mode], next_mode);
-		sd_journal_print(LOG_NOTICE, "Keyholder %s (%d) set next-status %s", keyuser, keyuid, modes[mode]);
+		if (asprintf(&keyuidstr, "%d", keyuid) < 0) {
+			fprintf(stderr, "asprintf failed!\n");
+			goto error;
+		}
+		write_file(statedir, "keyholder-id", keyuidstr);
+		free(keyuidstr);
+		write_file(statedir, "keyholder-name", keyuser);
+		if (mode >= 0)
+			write_file(statedir, "status", modes[mode]);
+		if (next_mode == -1)
+			write_file(statedir, "status-next", "");
+		else
+			write_file(statedir, "status-next", modes[next_mode]);
+		write_file(statedir, "message", msg);
+		free(statedir);
+
+		printf("Keyholder:   %s (%d)\n", keyuser, keyuid);
+		if (mode >= 0) {
+			sd_journal_print(LOG_NOTICE, "set status %s", modes[mode]);
+			printf("Status:      %s (%d)\n", modes[mode], mode);
+		} if (next_mode >= 0) {
+			printf("Next-Status: %s (%d)\n", modes[next_mode], next_mode);
+			sd_journal_print(LOG_NOTICE, "set next-status %s", modes[next_mode]);
+		}
+		printf("Message:     %s\n", msg);
+	} else if(cmd == CMD_OPEN_DOOR) {
+		fprintf(stderr, "open-door is not yet implemented!\n");
+		sd_journal_print(LOG_NOTICE, "keyholder-interface: open-door %s", doors[door]);
 	}
-	printf("Message:     %s\n", msg);
 
 	sqlite3_close(db);
 	cfg_close(cfg);
