@@ -730,6 +730,8 @@ int main(int argc, char **argv) {
 
 	cfg = cfg_open();
 
+	char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
+
 	if (argc != 3 || strcmp(argv[1], "-c")) {
 		fprintf(stderr, "What do you think I am? A shell?\n");
 		goto error;
@@ -790,16 +792,15 @@ int main(int argc, char **argv) {
 
 	sd_journal_print(LOG_NOTICE, "keyholder-interface: Identified user %s (%d) with key %s", keyuser, keyuid, keyfp);
 
+	/* current status is available from simple files */
+	if (mkdir(statedir, mode) && errno != EEXIST) {
+		fprintf(stderr, "Could not create statedir '%s'!\n", statedir);
+		goto error;
+	}
+
 	if (cmd == CMD_SET_STATUS || cmd == CMD_SET_NEXT_STATUS) {
 		if (!db_insert_log(db, logintime, keyuid, ip, keyfp, mode, msg)) {
 			fprintf(stderr, "DB: Could not insert into log table!\n");
-			goto error;
-		}
-
-		char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
-		/* current status is available from simple files */
-		if (mkdir(statedir, mode) && errno != EEXIST) {
-			fprintf(stderr, "Could not create statedir '%s'!\n", statedir);
 			goto error;
 		}
 
@@ -829,8 +830,9 @@ int main(int argc, char **argv) {
 		}
 		printf("Message:     %s\n", msg);
 	} else if(cmd == CMD_OPEN_DOOR) {
-		fprintf(stderr, "open-door is not yet implemented!\n");
+		write_file(statedir, "open-door", doors[door]);
 		sd_journal_print(LOG_NOTICE, "keyholder-interface: open-door %s", doors[door]);
+		printf("open door: %s\n", doors[door]);
 	}
 
 	sqlite3_close(db);
