@@ -30,6 +30,7 @@
 #include <time.h>
 #include <sqlite3.h>
 #include <openssl/evp.h>
+#include <systemd/sd-journal.h>
 
 #include "../common/config.h"
 
@@ -746,12 +747,15 @@ int main(int argc, char **argv) {
 	write_file(statedir, "message", msg);
 	free(statedir);
 
-	//printf("SSH Key %s accepted!\n\n", keyfp);
+	sd_journal_print(LOG_NOTICE, "SSH Key %s accepted by keyholder-interface!", keyfp);
 	printf("Keyholder:   %s (%d)\n", keyuser, keyuid);
-	if (mode >= 0)
+	if (mode >= 0) {
+		sd_journal_print(LOG_NOTICE, "Keyholder %s (%d) set status %s", keyuser, keyuid, modes[mode]);
 		printf("Status:      %s (%d)\n", modes[mode], mode);
-	if (next_mode >= 0)
+	} if (next_mode >= 0) {
 		printf("Next-Status: %s (%d)\n", modes[next_mode], next_mode);
+		sd_journal_print(LOG_NOTICE, "Keyholder %s (%d) set next-status %s", keyuser, keyuid, modes[mode]);
+	}
 	printf("Message:     %s\n", msg);
 
 	sqlite3_close(db);

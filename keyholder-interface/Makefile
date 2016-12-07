@@ -1,6 +1,6 @@
-LIBS=`pkg-config --libs libcrypto libpcre sqlite3`
+LIBS=`pkg-config --libs libcrypto libpcre sqlite3 libsystemd`
 LDFLAGS+=${LIBS}
-CFLAGS+=`pkg-config --cflags libcrypto libpcre sqlite3` -Wall
+CFLAGS+=`pkg-config --cflags libcrypto libpcre sqlite3 libsystemd` -Wall --std=gnu99
 
 acs: acs.o ../common/config.o
 acs.o: acs.c ../common/config.h
