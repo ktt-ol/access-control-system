@@ -256,6 +256,51 @@ static void handle_inotify(int fd) {
 	}
 }
 
+static bool open_door(struct mosquitto *mosq, char *door) {
+	int ret;
+
+	if (!door)
+		return true;
+
+	if (!strcmp(door, "glass")) {
+		printf("door open: glass\n");
+
+		ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_GLASS, 2, "1", 0, true);
+		if (ret) {
+			fprintf(stderr, "Error could not send message: %d\n", ret);
+			return false;
+		}
+
+		sleep(3);
+
+		ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_GLASS, 2, "0", 0, true);
+		if (ret) {
+			fprintf(stderr, "Error could not send message: %d\n", ret);
+			return false;
+		}
+	} else if (!strcmp(door, "main")) {
+		printf("door open: main\n");
+
+		ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_MAIN, 2, "1", 0, true);
+		if (ret) {
+			fprintf(stderr, "Error could not send message: %d\n", ret);
+			return false;
+		}
+
+		sleep(3);
+
+		ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_MAIN, 2, "0", 0, true);
+		if (ret) {
+			fprintf(stderr, "Error could not send message: %d\n", ret);
+			return false;
+		}
+	} else {
+		fprintf(stderr, "Could not open unknown door: %s\n", door);
+	}
+
+	return true;
+}
+
 int main(int argc, char **argv) {
 	struct mosquitto *mosq;
 	struct acs_files acsf;
@@ -356,11 +401,17 @@ int main(int argc, char **argv) {
 
 		ret = acsf_read(&acsf, &newacss);
 		if (ret < 0) {
+			if (newacss.door_open) {
+				/* remove file */
+				unlink(acsf.door_open);
+				open_door(mosq, newacss.door_open);
+			} else {
 				fprintf(stderr, "failed to read state: %d\n", ret);
-				acs_free(&newacss);
+			}
+			acs_free(&newacss);
 
-				/* invalidate cached information */
-				acs_free(&acss);
+			/* invalidate cached information */
+			acs_free(&acss);
 		} else { 
 			if(acs_cmp(&acss, &newacss)) {
 				acs_free(&acss);
@@ -405,43 +456,7 @@ int main(int argc, char **argv) {
 			} else if(newacss.door_open) {
 				/* remove file */
 				unlink(acsf.door_open);
-
-				if (!strcmp(newacss.door_open, "glass")) {
-					printf("door open: glass\n");
-
-					ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_GLASS, 2, "1", 0, true);
-					if (ret) {
-						fprintf(stderr, "Error could not send message: %d\n", ret);
-						return 1;
-					}
-
-					sleep(3);
-
-					ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_GLASS, 2, "0", 0, true);
-					if (ret) {
-						fprintf(stderr, "Error could not send message: %d\n", ret);
-						return 1;
-					}
-				} else if (!strcmp(newacss.door_open, "main")) {
-					printf("door open: main\n");
-
-					ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_MAIN, 2, "1", 0, true);
-					if (ret) {
-						fprintf(stderr, "Error could not send message: %d\n", ret);
-						return 1;
-					}
-
-					sleep(3);
-
-					ret = mosquitto_publish(mosq, NULL, TOPIC_BUZZER_MAIN, 2, "0", 0, true);
-					if (ret) {
-						fprintf(stderr, "Error could not send message: %d\n", ret);
-						return 1;
-					}
-				} else {
-					fprintf(stderr, "Could not open unknown door: %s\n", newacss.door_open);
-				}
-
+				open_door(mosq, newacss.door_open);
 				acs_free(&newacss);
 			} else {
 				printf("Not publishing unchanged state!\n");
