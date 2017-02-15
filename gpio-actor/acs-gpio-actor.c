@@ -33,6 +33,7 @@
 #include <dirent.h>
 #include <poll.h>
 #include <mosquitto.h>
+#include <stdlib.h>
 #include "../keyboard/gpio.h"
 #include "../common/config.h"
 
@@ -49,7 +50,12 @@ struct mqttgpio gpios[] = {
 };
 
 static void on_connect(struct mosquitto *m, void *udata, int res) {
-	fprintf(stderr, "Connected.\n");
+	fprintf(stderr, "MQTT connected.\n");
+}
+
+static void on_disconnect(struct mosquitto *m, void *udata, int res) {
+	fprintf(stderr, "MQTT disconnected.\n");
+	exit(1);
 }
 
 static void on_message(struct mosquitto *m, void *udata, const struct mosquitto_message *msg) {
@@ -96,6 +102,7 @@ struct mosquitto* mqtt_init() {
 
 	/* setup callbacks */
 	mosquitto_connect_callback_set(mosq, on_connect);
+	mosquitto_disconnect_callback_set(mosq, on_disconnect);
 	mosquitto_message_callback_set(mosq, on_message);
 	mosquitto_log_callback_set(mosq, on_log);
 
