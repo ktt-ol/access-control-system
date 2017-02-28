@@ -96,7 +96,7 @@ enum bus {
 };
 
 /* high = i2c mode, low = led mode ; led -> i2c mode switch needs 1ms */
-struct gpiodesc modegpio = { "i2c/1-0022", 3, "tiny-ws2812 mode", true, false, -1, -1 };
+struct gpiodesc modegpio = { "platform/gpio-sc18is600", 0, "tiny-ws2812 mode", true, false, -1, -1 };
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
