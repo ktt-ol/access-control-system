@@ -273,8 +273,6 @@ static void sed_multi_led(struct userdata *udata, uint8_t location, uint32_t col
 
 	for(i=start; i < stop; i++)
 		led_set(udata, i, color);
-	for(i=start; i < stop; i++)
-		led_check(udata, i, color);
 }
 
 static uint32_t state2color(enum states2 curstate, enum states2 nextstate) {
