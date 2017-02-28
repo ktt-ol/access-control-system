@@ -335,8 +335,6 @@ static void display_state(struct userdata *udata) {
 
 	/* internal */
 	uint32_t color_int = state2color(udata->curstate_internal, udata->nextstate_internal);
-	if (color_int == RED && udata->bolt) /* closed + LOCKED -> dark red */
-		color_int = RED2;
 	color_int |= (MODE_FADE | 63);
 
 	/* external */
@@ -350,6 +348,9 @@ static void display_state(struct userdata *udata) {
 	sed_multi_led(udata, LOCATION_ALL, color_int);
 	sed_multi_led(udata, LOCATION_INDOOR_LOCAL, color_loc);
 	sed_multi_led(udata, LOCATION_INDOOR_EXTERNAL, color_ext);
+	if (udata->bolt) {
+		sed_multi_led(udata, LOCATION_KEYPAD, BLACK);
+	}
 	if (udata->buzzer_maindoor) {
 		sed_multi_led(udata, LOCATION_KEYPAD, greenblink);
 		sed_multi_led(udata, LOCATION_BELL_BUTTON_MAIN, greenblink);
