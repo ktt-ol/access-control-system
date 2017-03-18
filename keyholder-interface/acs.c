@@ -31,6 +31,8 @@
 #include <sqlite3.h>
 #include <openssl/evp.h>
 #include <systemd/sd-journal.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 #include "../common/config.h"
 
@@ -727,18 +729,25 @@ int main(int argc, char **argv) {
 	char *msg = NULL;
 	char *keyuidstr = NULL;
 	enum door door;
+	char *command = NULL;
+	enum cmd cmd;
 
 	cfg = cfg_open();
 
 	char *statedir = cfg_get_default(cfg, "statedir", STATEDIR);
 
-	if (argc != 3 || strcmp(argv[1], "-c")) {
-		fprintf(stderr, "What do you think I am? A shell?\n");
+	if (argc == 1) {
+		sd_journal_print(LOG_NOTICE, "providing pseudo shell");
+		command = readline("acs> ");
+	} else if (argc == 3 && !strcmp(argv[1], "-c")) {
+		command = strdup(argv[2]);
+	} else {
+		fprintf(stderr, "invalid parameters\n");
+		sd_journal_print(LOG_ERR, "invalid parameters");
 		goto error;
 	}
 
-	char *command = argv[2];
-	enum cmd cmd = get_command(&command);
+	cmd = get_command(&command);
 
 	sd_journal_print(LOG_DEBUG, "keyholder-interface: cmd=%s arguments=%s", cmd_str[cmd], command);
 
