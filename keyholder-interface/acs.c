@@ -739,6 +739,11 @@ int main(int argc, char **argv) {
 	if (argc == 1) {
 		sd_journal_print(LOG_NOTICE, "providing pseudo shell");
 		command = readline("acs> ");
+		if (strlen(command) <= 2) {
+			free(command);
+			command = readline("acs> ");
+		}
+		sd_journal_print(LOG_DEBUG, "raw command: %s", command);
 	} else if (argc == 3 && !strcmp(argv[1], "-c")) {
 		command = strdup(argv[2]);
 	} else {
