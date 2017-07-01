@@ -49,9 +49,26 @@ static const char* modes[] = { "unknown", "none", "keyholder", "member", "open",
 static const char *LOG_REGEX = "^([A-Z][a-z]{2}) ([ 0-3][0-9]) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ([^ ]+) ([a-zA-Z]+)\\[([0-9]+)\\]: (.*)$";
 
 // ... (username) ... (ip) ... (keytype) ... (keyhash)
-static const char *SSH_REGEX = "^Accepted publickey for ([-_\\.a-zA-Z0-9]+) from ([0-9\\.]+) port [0-9]+ ssh2: ([A-Z0-9]+) ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2})$";
+static const char *SSH_REGEX_MD5 = "^Accepted publickey for ([-_\\.a-zA-Z0-9]+) from ([0-9\\.]+) port [0-9]+ ssh2: ([A-Z0-9]+) ([0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2})$";
+static const char *SSH_REGEX_SHA256 = "^Accepted publickey for ([-_\\.a-zA-Z0-9]+) from ([0-9\\.]+) port [0-9]+ ssh2: ([A-Z0-9]+) SHA256:([A-Za-z0-9+/]+)$";
 
 FILE *cfg;
+
+enum fptype {
+	FP_MD5,
+	FP_SHA256,
+};
+
+static const char* fptype2str(enum fptype type) {
+	switch (type) {
+	case FP_MD5:
+		return "MD5";
+	case FP_SHA256:
+		return "SHA256";
+	default:
+		return "(UNKNOWN)";
+	}
+}
 
 static pid_t process_get_parent(pid_t pid) {
 	char path[32];
@@ -131,7 +148,7 @@ static bool find_sshd_parent(pid_t *pid) {
 	return false;
 }
 
-static bool parse_sshd_message(const char *msg, char **ip, char **type, char **fp) {
+static bool parse_sshd_message(const char *regexstr, const char *msg, char **ip, char **type, char **fp) {
 	pcre *regex;
 	pcre_extra *regex2;
 	const char *pcreErrorStr;
@@ -140,7 +157,7 @@ static bool parse_sshd_message(const char *msg, char **ip, char **type, char **f
 	int err;
 	const char *submatch;
 
-	regex = pcre_compile(SSH_REGEX, 0, &pcreErrorStr, &pcreErrorOffset, NULL);
+	regex = pcre_compile(regexstr, 0, &pcreErrorStr, &pcreErrorOffset, NULL);
 	if (!regex) {
 		fprintf(stderr, "Could not compile regex: %s\n", pcreErrorStr);
 		return false;
@@ -216,7 +233,7 @@ error:
 	return false;
 }
 
-static bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **type, char **fp) {
+static bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **type, enum fptype *fptype, char **fp) {
 	FILE *f;
 	char *line = NULL;
 	size_t len;
@@ -340,8 +357,14 @@ static bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **ty
 		rawtime = mktime(timedate);
 
 		pcre_get_substring(line, subStrVec, err, 9, &(submatch));
-		if(parse_sshd_message(submatch, ip, type, fp))
+		if(parse_sshd_message(SSH_REGEX_MD5, submatch, ip, type, fp)) {
+			*fptype = FP_MD5;
 			*logtime = rawtime;
+		}
+		if(parse_sshd_message(SSH_REGEX_SHA256, submatch, ip, type, fp)) {
+			*fptype = FP_SHA256;;
+			*logtime = rawtime;
+		}
 		pcre_free_substring(submatch);
 	}
 	free(line);
@@ -359,19 +382,12 @@ static bool log_get_fingerprint(pid_t pid, time_t *logtime, char **ip, char **ty
 	}
 }
 
-static char* key2fp(const char *key_base64) {
-	size_t key_base64_len = strlen(key_base64);
-	unsigned char *key_raw = (unsigned char *) malloc(key_base64_len);
-	size_t key_raw_len = 0;
+static char* key2fp_md5(const unsigned char *key_raw, size_t key_raw_len) {
 	EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
 	unsigned char md_value[EVP_MAX_MD_SIZE];
 	unsigned int md_len;
 	int err;
 	char *result;
-
-	key_raw_len = EVP_DecodeBlock(key_raw, (unsigned char *) key_base64, key_base64_len); 
-	for(int i=key_base64_len-1; key_base64[i] == '='; i--)
-		key_raw_len--;
 
 	EVP_MD_CTX_init(mdctx);
 	EVP_DigestInit_ex(mdctx, EVP_md5(), NULL);
@@ -383,21 +399,84 @@ static char* key2fp(const char *key_base64) {
 	err = EVP_DigestFinal_ex(mdctx, md_value, &md_len);
 	if (err != 1)
 		return NULL;
-	
+
 	EVP_MD_CTX_destroy(mdctx);
 
 	result = malloc(16*3);
 	if (!result)
 		return NULL;
-	
+
 	snprintf(result, 16*3, "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
 		md_value[0], md_value[1], md_value[2], md_value[3], md_value[4], md_value[5], md_value[6], md_value[7],
 		md_value[8], md_value[9], md_value[10], md_value[11], md_value[12], md_value[13], md_value[14], md_value[15]);
-	
+
 	return result;
 }
 
-static bool authorized_keys_get(char *keyfp, char **key, char **comment) {
+static char* key2fp_sha256(const unsigned char *key_raw, size_t key_raw_len) {
+	EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
+	unsigned char md_value[EVP_MAX_MD_SIZE];
+	unsigned int md_len;
+	int err;
+	char *result;
+
+	EVP_MD_CTX_init(mdctx);
+	EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
+
+	err = EVP_DigestUpdate(mdctx, key_raw, key_raw_len);
+	if (err != 1)
+		return NULL;
+
+	err = EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+	if (err != 1)
+		return NULL;
+
+	EVP_MD_CTX_destroy(mdctx);
+
+	/* 256 bits = 32 bytes */
+	if (md_len != 32)
+		return NULL;
+
+	result = malloc(md_len*2);
+	if (!result)
+		return NULL;
+
+	EVP_EncodeBlock((unsigned char*) result, md_value, md_len);
+	for(int i=43; result[i] == '='; i--)
+		result[i] = '\0';
+
+	return result;
+}
+
+static char* key2fp(enum fptype keyfptype, const char *key_base64) {
+	size_t key_base64_len = strlen(key_base64);
+	unsigned char *key_raw = (unsigned char *) malloc(key_base64_len);
+	size_t key_raw_len = 0;
+	char *result = NULL;
+
+	key_raw_len = EVP_DecodeBlock(key_raw, (unsigned char *) key_base64, key_base64_len);
+	for(int i=key_base64_len-1; key_base64[i] == '='; i--)
+		key_raw_len--;
+
+	switch (keyfptype) {
+	case FP_MD5:
+		result = key2fp_md5(key_raw, key_raw_len);
+		break;
+	case FP_SHA256:
+		result = key2fp_sha256(key_raw, key_raw_len);
+		break;
+	default:
+		break;
+	}
+
+	free(key_raw);
+
+	if (!result)
+		fprintf(stderr, "Unsupported fingerprint type: %s\n", fptype2str(keyfptype));
+	return result;
+}
+
+static bool authorized_keys_get(enum fptype keyfptype, char *keyfp, char **key, char **comment) {
 	FILE *f;
 	char *line = NULL;
 	size_t len = 0;
@@ -431,7 +510,7 @@ static bool authorized_keys_get(char *keyfp, char **key, char **comment) {
 		*kc = '\0';
 		kc++;
 
-		char *fp = key2fp(kd);
+		char *fp = key2fp(keyfptype, kd);
 		if (strcmp(keyfp, fp)) {
 			/* fingerprint mismatch */
 			continue;
@@ -458,7 +537,7 @@ static char *keycomment2username(const char *comment) {
 	/* no '@' found, just use whole comment */
 	if (!split)
 		return strdup(comment);
-	
+
 	return strndup(comment, split-comment);
 }
 
@@ -492,7 +571,7 @@ static enum cmd get_command(char **command) {
 
 	if (*command == NULL)
 		return CMD_INVALID;
-	
+
 	for (i=0; i < CMD_MAX; i++) {
 		if (!strncmp(*command, cmd_str[i], strlen(cmd_str[i]))) {
 			result = i;
@@ -604,7 +683,7 @@ static bool db_init(sqlite3 **db) {
 		sqlite3_close(*db);
 		return false;
 	}
-	
+
 	return true;
 }
 
@@ -612,7 +691,7 @@ static bool db_get_uid(sqlite3 *db, char *username, int *userid) {
 	int err;
 	sqlite3_stmt *res;
 	char *query;
-	
+
 	query = "SELECT id FROM user where username = ?";
 	err = sqlite3_prepare_v2(db, query, -1, &res, 0);
 	if (err != SQLITE_OK) {
@@ -638,7 +717,7 @@ static bool db_update_key(sqlite3 *db, const char *fingerprint, int uid, const c
 	int err;
 	sqlite3_stmt *res;
 	char *query;
-	
+
 	query = "INSERT OR REPLACE INTO key VALUES (?, ?, ?, ?, ?, ?)";
 	err = sqlite3_prepare_v2(db, query, -1, &res, 0);
 	if (err != SQLITE_OK) {
@@ -706,7 +785,7 @@ static bool write_file(const char *dir, const char *filename, const char *data) 
 		free(path);
 		return false;
 	}
-	
+
 	written = fwrite(data, 1, len, f);
 	fwrite("\n", 1, 1, f);
 	fclose(f);
@@ -724,6 +803,7 @@ int main(int argc, char **argv) {
 	time_t logintime;
 	int keyuid;
 	char *ip, *keytype, *keyfp, *keydata, *keycomment, *keyuser;
+	enum fptype keyfptype;
 	sqlite3 *db = NULL;
 	int mode = -1, next_mode = -1;
 	char *msg = NULL;
@@ -786,10 +866,10 @@ int main(int argc, char **argv) {
 		goto error;
 
 	/* get public key fingerprint from ssh authentication logfile */
-	if (!log_get_fingerprint(pid, &logintime, &ip, &keytype, &keyfp))
+	if (!log_get_fingerprint(pid, &logintime, &ip, &keytype, &keyfptype, &keyfp))
 		goto error;
 
-	if (!authorized_keys_get(keyfp, &keydata, &keycomment))
+	if (!authorized_keys_get(keyfptype, keyfp, &keydata, &keycomment))
 		goto error;
 
 	keyuser = keycomment2username(keycomment);
@@ -804,7 +884,7 @@ int main(int argc, char **argv) {
 		goto error;
 	}
 
-	sd_journal_print(LOG_NOTICE, "keyholder-interface: Identified user %s (%d) with key %s", keyuser, keyuid, keyfp);
+	sd_journal_print(LOG_NOTICE, "keyholder-interface: Identified user %s (%d) with key %s:%s", keyuser, keyuid, fptype2str(keyfptype), keyfp);
 
 	/* current status is available from simple files */
 	if (mkdir(statedir, mode) && errno != EEXIST) {
